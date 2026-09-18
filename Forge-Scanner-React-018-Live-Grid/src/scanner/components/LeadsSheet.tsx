@@ -197,14 +197,17 @@ export function LeadsSheet({ leads, onExport }: Props) {
           const cells: Record<string, ReactNode> = {
             company: (
               <>
-                <strong>{lead.companyName}</strong>
+                <span className="company-name-wrap">
+                  {lead.possibleSameBusinessAs.length > 0 && (
+                    <span
+                      className="flag-dot"
+                      title={`No matching name/address in this batch, but could be the same business as: ${lead.possibleSameBusinessAs.join(', ')}`}
+                    />
+                  )}
+                  <strong className={lead.possibleSameBusinessAs.length > 0 ? 'flag-strong-text' : undefined}>{lead.companyName}</strong>
+                </span>
                 {(info.nameDiffers || info.dbaDiffers) && <Diff value={altNames.join(', ')} title="The bank statements print a different name/DBA than the application" />}
                 {lead.duplicateCount > 0 && <span className="dup-badge" title={`${lead.duplicateCount} duplicate file(s) excluded from these numbers`}>⧉ {lead.duplicateCount}</span>}
-                {lead.possibleSameBusinessAs && (
-                  <span className="differs-badge" title={`Same address as "${lead.possibleSameBusinessAs}" — might be the same business banking under a different name`}>
-                    ⚠ possibly {lead.possibleSameBusinessAs}
-                  </span>
-                )}
               </>
             ),
             owner: displayValue(app?.fullName, lead.application),

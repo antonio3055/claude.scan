@@ -15,6 +15,7 @@
   --good-soft: #e5f5ef;
   --warn: #ad6c07;
   --warn-soft: #fbf0dd;
+  --warn-strong: #7a4c05;
   --bad: #c23c3c;
   --bad-soft: #fbe8e8;
   width: 100%;
@@ -193,6 +194,12 @@
 .statement-cell b { font-weight: 700; color: var(--accent-strong); }
 
 .differs-badge { margin-left: 8px; color: var(--warn); font-weight: 700; cursor: help; }
+.company-name-wrap { position: relative; display: inline-block; }
+.flag-dot {
+  position: absolute; top: -3px; left: -5px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--warn-strong); cursor: help;
+}
+.flag-strong-text { color: var(--warn-strong); }
 .differs-value { font-weight: 600; }
 .dup-badge { margin-left: 8px; padding: 1px 6px; border-radius: 5px; background: var(--bad-soft); color: var(--bad); font-size: 9.5px; font-weight: 700; cursor: help; }
 

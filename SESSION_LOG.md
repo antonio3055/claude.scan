@@ -208,3 +208,43 @@ both of these changes is `tsc` + `vite build` + the full existing suite
 (regression) + a real-browser Playwright check specific to each new
 behavior (feature correctness). If `lib/leads.ts` grows more logic like
 this, it may be worth wiring up a TS-aware test runner for it.
+
+---
+
+## 2026-09-18 (continued) — Same-business flag: broadened + restyled, on PR #3
+
+Two rounds of user feedback on the same-address flag above, both applied
+directly to `claude/magical-gates-w0kw08` / PR #3 before it merged:
+
+**Broadened the match.** The user pointed out an app-only lead and a
+statement-only lead can be the same real business even when neither the
+name nor the address line up (an old address on file, a typo, a business
+that moved) — the address-match requirement was too narrow. `lib/leads.ts`
+now drops the `sameAddress` check entirely: `flagPossibleSameBusiness`
+(renamed from `flagSameAddressAcrossNames`) flags every application-only
+lead against every statement-only lead in the batch, unconditionally.
+`possibleSameBusinessAs` changed from `string | null` to `string[]` to
+carry more than one candidate when there's more than one orphan on each
+side (uncommon, but the type has to allow it now that there's no filter
+narrowing the pairs).
+
+**Restyled the flag.** The inline "⚠ possibly \<company\>" badge widened
+the Company column and was unreadable without manually resizing it — not
+something the person doing the review should have to do to see a warning.
+Replaced with: a small solid amber dot pinned to the top-left corner of
+the company name (`.flag-dot`, absolutely positioned inside a
+`position: relative` wrapper, so it overlays the first letter without
+shifting anything or affecting row height/column width), and the company
+name text itself recolored a darker amber (`.flag-strong-text`, new
+`--warn-strong: #7a4c05` variable next to the existing `--warn`/
+`--warn-soft`). The full "possibly the same as X" detail moved to the
+dot's hover tooltip instead of being shown inline. Scoped to only this
+badge — the existing name/DBA/address-differs badges and the duplicate
+badge were left as they were; nobody asked for those to change.
+
+Verified live in a local `vite preview` build with two synthetic
+documents that share neither a name nor an address (`Northgate Traders
+LLC` / `90 Main Street, Austin, TX` vs `SOUTHVIEW WHOLESALE CORP` / `210
+Oak Ridge Dr, Reno, NV`) — both leads got the dot, pointing at each other,
+with no address or name overlap at all. Full regression suite (309 tests)
+and build still clean.
