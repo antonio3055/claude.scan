@@ -75,6 +75,10 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
         onOpenOptions={() => setOptionsOpen(true)}
         onOpenOcrFiles={() => setOcrFilesOpen(true)}
         onOpenSend={() => setSendOpen(true)}
+        onClearStorage={() => {
+          void scanner.clearStorage().then(() => setStorageEpoch((n) => n + 1));
+        }}
+        storageEpoch={storageEpoch}
         readyToSend={readyToSend}
       />
 
@@ -101,10 +105,6 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
           settings={scanner.settings}
           onSettings={scanner.setSettings}
           onClose={() => setOptionsOpen(false)}
-          onClearStorage={() => {
-            void scanner.clearStorage().then(() => setStorageEpoch((n) => n + 1));
-          }}
-          storageEpoch={storageEpoch}
         />
       )}
       {ocrFilesOpen && <OcrFilesModal documents={scanner.documents} onClose={() => setOcrFilesOpen(false)} />}

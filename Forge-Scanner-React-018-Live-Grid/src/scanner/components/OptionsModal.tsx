@@ -1,16 +1,13 @@
 import type { ScanSettings } from '../types/scanner';
-import { StoragePanel } from './StoragePanel';
 
 interface Props {
   settings: ScanSettings;
   onSettings: (settings: ScanSettings) => void;
   onClose: () => void;
-  onClearStorage: () => void;
-  storageEpoch: number;
 }
 
 /** Everything used rarely enough that it does not belong on the main toolbar. */
-export function OptionsModal({ settings, onSettings, onClose, onClearStorage, storageEpoch }: Props) {
+export function OptionsModal({ settings, onSettings, onClose }: Props) {
   return (
     <div className="scanner-modal-overlay" onClick={onClose}>
       <div className="scanner-modal" onClick={(e) => e.stopPropagation()}>
@@ -46,7 +43,6 @@ export function OptionsModal({ settings, onSettings, onClose, onClearStorage, st
             </select>
           </label>
         </div>
-        <StoragePanel onClear={onClearStorage} epoch={storageEpoch} />
       </div>
     </div>
   );

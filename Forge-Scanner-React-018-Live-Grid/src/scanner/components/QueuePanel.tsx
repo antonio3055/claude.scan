@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { ScannerDocument, ScannerLead } from '../types/scanner';
 import { MoreIcon, PauseIcon, PlayIcon, RefreshIcon, SendIcon, StopIcon, UploadIcon } from './ScannerIcons';
 import { StatsStrip } from './StatsStrip';
+import { StoragePanel } from './StoragePanel';
 import { expandZips } from '../lib/zipUpload';
 import { useElapsedTimer } from '../hooks/useElapsedTimer';
 
@@ -22,6 +23,8 @@ interface Props {
   onOpenOptions: () => void;
   onOpenOcrFiles: () => void;
   onOpenSend: () => void;
+  onClearStorage: () => void;
+  storageEpoch: number;
   readyToSend: number;
 }
 
@@ -78,6 +81,7 @@ export function QueuePanel(props: Props) {
           <div className="toolbar-title-row">
             <div><h1>Forge Scanner</h1><span>{props.running ? (props.paused ? 'Paused' : 'Scanning') : queued ? `${queued} queued` : 'Ready'}</span></div>
             <div className="head-actions">
+              <StoragePanel onClear={props.onClearStorage} epoch={props.storageEpoch} />
               {props.running ? (
                 <button className="icon-control" type="button" onClick={props.paused ? props.onResume : props.onPause} title={props.paused ? 'Resume scan' : 'Pause scan'}>
                   {props.paused ? <PlayIcon /> : <PauseIcon />}

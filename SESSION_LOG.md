@@ -333,3 +333,38 @@ code behind that nobody had run since:
 CI workflow (build + `test:suites` on every PR) until the suites are
 green -- they are now, so this is the next thing to propose to the user,
 not something to add unilaterally this session.
+
+---
+
+## 2026-09-18 (continued) — Storage/cache moved to the header, verified correct
+
+User report: "I cached and there is still 78.4kb, won't let cache more
+than once" plus a request to always show storage info + Clear cache in
+the main header instead of inside the Options popup.
+
+**Verified before changing anything** (real browser, not guesswork): drove
+the built app with Playwright -- scanned files, read `navigator.storage
+.estimate()` (which is exactly what `StoragePanel.tsx` already reads --
+this was never a custom/approximate calculation), clicked Clear cache,
+confirmed `documents`/`files` object stores were genuinely empty
+(`readDocuments().length === 0`) right after, then scanned a second batch
+afterward with no problem (settled normally, correct extracted data). The
+"won't cache more than once" half did not reproduce. The residual-KB half
+is real, but it's the browser's own IndexedDB storage engine logging the
+delete itself as a write and reclaiming disk space lazily in the
+background, not something `scannerStore.clearAll()` (which correctly
+calls `store.clear()` on both object stores) can force synchronously from
+JS -- usage was observed to go *up* immediately after a clear before
+settling, which is consistent with this and not with an incomplete clear.
+
+**Moved**: `StoragePanel` out of `OptionsModal` (which no longer takes
+`onClearStorage`/`storageEpoch` at all) and into `QueuePanel`'s header
+row, rendered immediately to the left of the Play/Stop/"..." icon buttons
+-- always visible, no modal needed. Restyled from a full-width modal
+footer into a compact chip matching the 30px icon-button height. Added a
+tooltip on the value explaining the residual-bytes behavior above, so it
+reads as expected rather than broken.
+
+Verified with `tsc`, `vite build`, the full 514-test regression suite
+(unaffected), and a real-browser screenshot confirming the chip's new
+position and that it no longer renders inside the Options modal.
