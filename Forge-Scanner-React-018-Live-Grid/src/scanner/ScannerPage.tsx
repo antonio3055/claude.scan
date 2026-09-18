@@ -92,6 +92,7 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
         >
           <LeadsSheet
             leads={leads}
+            running={scanner.running}
             onExport={() => exportLeadsToXlsx(leads, scanner.settings.exporterInitials)}
             onRemoveUnassociated={(fileIds) => fileIds.forEach((id) => void scanner.removeDoc(id))}
           />

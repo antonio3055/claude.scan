@@ -567,3 +567,77 @@ Verified: `tsc --noEmit` and the full 516-test suite both still clean;
 the removed rules were real dead weight, not a no-op); a real-browser
 Playwright screenshot after the cleanup shows Results/Scan Audit rendering
 identically to before, with zero console or page errors.
+
+---
+
+## 2026-09-18 (continued) — Flag styling simplified; unmatched banner hidden mid-scan; real scan15test.zip finally run (Scanner 05)
+
+**Flag styling simplified.** The amber dot pinned to the company name
+(`.flag-dot`) and the ⚠ icon on the differs badge (`.differs-badge`) are
+gone, per request ("stays clean"). Both the company-name flag
+(`possibleSameBusinessAs` and/or a name/DBA that differs from the
+application) and the address-differs flag now render the same way: a plain
+bullet (`•`), the primary value in amber, and the other source's value
+right after it in parentheses, muted -- one `FlaggedValue` component in
+`LeadsSheet.tsx` reused for both, replacing the old `Diff` component +
+separate dot span. `dup-badge` (⧉, the excluded-duplicate-file count) is
+untouched -- a different signal, not part of this ask.
+`test-company-info-browser.mjs`'s DOM-reading helper updated to match (was
+reading `.differs-value`/`⚠`, now reads `.flag-amber`/`.flag-alt`).
+
+**Unmatched-doc banner no longer shows while a scan is running.** Every
+newly-added, not-yet-processed document has no `companyNameGuess` yet (it
+hasn't been read), so it counts as "unmatched" until its own extraction
+finishes -- meaning the banner would flash something like "60 documents
+could not be matched" the instant a large batch was dropped in, before any
+of them had even been read. `LeadsSheet` now takes a `running` prop
+(`scanner.running`, threaded through `ScannerPage.tsx`) and the banner
+condition is `missingCompany > 0 && !running`. Verified live: right after
+adding 5 files (still queued), the banner stays hidden even though the
+Results header briefly reads "0 of 5 companies"; once settled with nothing
+genuinely unmatched, it correctly stays hidden.
+
+**The user's real `scan15test.zip` (61 real PDFs, 13 companies) was
+finally run end-to-end** through the actual built app via the real
+drag-drop zip-upload path (not synthetic fixtures) -- this is the file
+every earlier session referenced but none had in hand. Conclusively
+answers two things flagged as open in earlier entries:
+
+- **The "massively repeated Scan Audit rows" from the user's screenshot is
+  not a bug.** One clean upload of the real 61-file zip produced exactly
+  61 audit rows -- one per document, zero duplication, matching what the
+  code always predicted. This confirms it was accumulated state from
+  re-uploading the same/overlapping batch across sessions without
+  "Clear cache" in between (`duplicateHandling: 'flag'` by design keeps
+  every upload's documents visible in the audit trail, persisted in
+  IndexedDB until cleared) -- not a processing or rendering defect.
+- **The "23hundred Ventures INC duplicate statement" is a real duplicate
+  in the source data, not a detection bug.** `23hundred ventures inc MARCH
+  BS.pdf` and `...APRIL BS.pdf` are different files byte-for-byte
+  (confirmed via SHA-256 -- different hashes, so the app's `findDuplicate`
+  correctly did not flag them as an exact-duplicate file) but their
+  extracted text is 100% identical: both are literally the same March 31
+  2026 Truist statement, one of them mislabeled "APRIL" in the test data
+  itself. The app's duplicate detection is byte/content-hash based by
+  design (safe: it can never falsely merge two different real statements);
+  catching a same-content-different-bytes case like this would need a
+  second, fuzzier check (e.g. matching statement period + closing balance)
+  -- a real possible enhancement, not built here since it's a design
+  choice to make deliberately, not an obvious bug fix.
+
+Also observed as a direct, expected consequence of this session's earlier
+"OCR auto-continue off by default" change: with OCR no longer running
+automatically, a batch containing scanned (image-only) statements now more
+often trips the unmatched-doc banner right after a regular scan (6 of the
+61 files here needed OCR and briefly counted as unmatched) until "Run OCR
+on flagged" is clicked by hand -- not a bug, just a real tradeoff of
+turning auto-continue off; clicking "Run OCR on flagged" resolved all 6
+cleanly (14 of 14 companies matched afterward, banner gone).
+
+Verified: `tsc`, full 516-test suite, and build all clean. Real-browser
+Playwright run against the actual `scan15test.zip`: 61/61 documents
+settled (49 complete, 12 needs_review, 0 failed), zero console/page
+errors, zero external network attempts, "Run OCR on flagged" completed the
+6 flagged files without error, and the new amber-bullet flag styling
+renders correctly on real flagged rows (e.g. "• Abbaspour INC (2 EVERFRESH
+MARKET INC.)").
