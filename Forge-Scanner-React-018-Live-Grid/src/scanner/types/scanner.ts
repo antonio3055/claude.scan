@@ -27,6 +27,8 @@ export interface ScanSettings {
   revenueExclusionThreshold: number;
   /** Whoever is exporting right now, e.g. "MM" -- goes at the front of the XLSX filename so it's clear at a glance who ran/sent it. */
   exporterInitials: string;
+  /** Off by default: OCR is slow, so a regular scan no longer follows up with an automatic OCR pass unless this is turned on. "Run OCR on flagged" always stays available by hand either way. */
+  autoContinueOcr: boolean;
 }
 
 export interface StageLogEntry {

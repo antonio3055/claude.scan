@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { ScannerDocument, ScannerLead } from '../types/scanner';
+import type { ScannerDocument, ScannerLead, ScanSettings } from '../types/scanner';
 import { MoreIcon, PauseIcon, PlayIcon, RefreshIcon, SendIcon, StopIcon, UploadIcon } from './ScannerIcons';
 import { StatsStrip } from './StatsStrip';
 import { StoragePanel } from './StoragePanel';
@@ -11,6 +11,8 @@ interface Props {
   leads: ScannerLead[];
   running: boolean;
   paused: boolean;
+  settings: ScanSettings;
+  onSettings: (settings: ScanSettings) => void;
   onAddFiles: (files: File[]) => void;
   onPause: () => void;
   onResume: () => void;
@@ -40,6 +42,9 @@ export function QueuePanel(props: Props) {
   // when this count is acted on: nothing here starts OCR on its own.
   const needsOcrCount = props.documents.filter((d) => d.needsOcr && !d.usedOcr).length;
   const usedOcrCount = props.documents.filter((d) => d.usedOcr).length;
+  // OCR is by far the slowest stage -- called out by name in the status line
+  // (instead of a generic "Scanning") so it's obvious why things have slowed down.
+  const ocrRunningCount = props.documents.filter((d) => d.processingStatus === 'ocr').length;
   const elapsed = useElapsedTimer(props.running, props.paused);
 
   const ingest = async (list: File[]) => {
@@ -79,8 +84,22 @@ export function QueuePanel(props: Props) {
 
         <div className="toolbar-right">
           <div className="toolbar-title-row">
-            <div><h1>Forge Scanner</h1><span>{props.running ? (props.paused ? 'Paused' : 'Scanning') : queued ? `${queued} queued` : 'Ready'}</span></div>
+            <div><h1>Forge Scanner</h1><span>{props.running ? (props.paused ? 'Paused' : ocrRunningCount ? `Running OCR (${ocrRunningCount}) -- this is the slow part` : 'Scanning') : queued ? `${queued} queued` : 'Ready'}</span></div>
             <div className="head-actions">
+              <div className="page-limits" title="Pages read per file before the scan stops reading it">
+                <label>Reg
+                  <input
+                    type="number" min="1" max="9999" value={props.settings.regularPages}
+                    onChange={(e) => props.onSettings({ ...props.settings, regularPages: Math.max(1, Number(e.target.value) || 9999) })}
+                  />
+                </label>
+                <label>OCR
+                  <input
+                    type="number" min="1" max="9999" value={props.settings.ocrPages}
+                    onChange={(e) => props.onSettings({ ...props.settings, ocrPages: Math.max(1, Number(e.target.value) || 9999) })}
+                  />
+                </label>
+              </div>
               <StoragePanel onClear={props.onClearStorage} epoch={props.storageEpoch} />
               {props.running ? (
                 <button className="icon-control" type="button" onClick={props.paused ? props.onResume : props.onPause} title={props.paused ? 'Resume scan' : 'Pause scan'}>

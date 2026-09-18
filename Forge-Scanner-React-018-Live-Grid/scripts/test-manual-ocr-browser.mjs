@@ -1,14 +1,17 @@
 /**
- * OCR auto-continues after a regular scan — proved in a real browser.
+ * OCR after a regular scan — proved in a real browser.
  *
- * A regular scan reads with its text layer first, same as always. If that
- * pass leaves anything flagged `needsOcr`, the scanner now follows up with
- * exactly one automatic OCR pass on those files -- the user no longer has
- * to find and click "Run OCR on flagged" for the common case. That control
- * still exists (for anything flagged after this run, e.g. a later batch),
- * and its own requeue/flag-clearing mechanics are covered at the unit level
- * in test-recovery.mjs and structurally in audit.mjs; this suite is about
- * the end-to-end auto-continue behaviour against the built app, offline.
+ * OCR is by far the slowest stage, so it no longer runs on its own: a
+ * regular scan reads with its text layer first, same as always, and any
+ * file left flagged `needsOcr` just waits there until "Run OCR on flagged"
+ * is clicked by hand. A user who wants the old behaviour back can turn
+ * "Auto-run OCR after scan" on in Options, which restores the single
+ * automatic follow-up pass. Either way, an OCR pass itself never triggers
+ * another one, so a file that fails OCR outright (still `needsOcr`, never
+ * `usedOcr`) cannot loop forever. The manual control's own requeue/flag-
+ * clearing mechanics are covered at the unit level in test-recovery.mjs and
+ * structurally in audit.mjs; this suite is about the end-to-end behaviour
+ * against the built app, offline.
  */
 
 import assert from 'node:assert/strict';
@@ -16,7 +19,7 @@ import { createReporter } from './lib/report.mjs';
 import { buildImageOnlyPdf, buildTextPdf } from './lib/fixtures.mjs';
 import { launchScanner, SETTLED } from './lib/browser-harness.mjs';
 
-const reporter = createReporter('OCR auto-continue tests');
+const reporter = createReporter('OCR tests');
 
 const READABLE = buildTextPdf([
   'Account Statement',
@@ -25,7 +28,8 @@ const READABLE = buildTextPdf([
   'Electronic Withdrawals 18 -18,477.08',
   'Ending Balance 57 $1,346.38'
 ]);
-const SCANNED = buildImageOnlyPdf();
+const SCANNED_A = buildImageOnlyPdf();
+const SCANNED_B = buildImageOnlyPdf();
 
 const scanner = await launchScanner();
 
@@ -38,72 +42,97 @@ async function waitForOcrSettled(filename, timeoutMs) {
     if (last && SETTLED.includes(last.processingStatus) && !(last.needsOcr && !last.usedOcr)) return last;
     await scanner.page.waitForTimeout(200);
   }
-  throw new Error(`${filename} never reached a final post-auto-OCR state within ${timeoutMs}ms (last: ${JSON.stringify(last)})`);
+  throw new Error(`${filename} never reached a final post-OCR state within ${timeoutMs}ms (last: ${JSON.stringify(last)})`);
 }
 
 try {
   await scanner.open();
 
-  await reporter.check('the scanner starts with OCR off', async () => {
+  await reporter.check('the scanner starts with OCR off and auto-continue off', async () => {
     const settings = await scanner.readSettings();
     assert.equal(settings?.mode ?? 'regular', 'regular');
+    assert.equal(Boolean(settings?.autoContinueOcr), false);
   });
+
+  // ---- Default (auto-continue off): a scanned file waits, unread, for a manual click ----
 
   await scanner.addFiles([
     { name: 'readable.pdf', bytes: READABLE },
-    { name: 'scanned.pdf', bytes: SCANNED }
+    { name: 'scanned-a.pdf', bytes: SCANNED_A }
   ]);
 
   const readable = await scanner.waitForDocument('readable.pdf', 120_000);
-  const scanned = await waitForOcrSettled('scanned.pdf', 180_000);
+  const flagged = await scanner.waitForDocument('scanned-a.pdf', 120_000);
 
   await reporter.check('a readable file is never flagged for OCR', async () => {
     assert.equal(Boolean(readable.needsOcr), false);
     assert.equal(Boolean(readable.usedOcr), false);
   });
 
-  await reporter.check('the readable file was still extracted normally', async () => {
+  await reporter.check('the readable file was extracted normally', async () => {
     assert.equal(readable.statementSummary?.deposits, 19441.82);
     assert.equal(readable.reconciliation?.reconciles, true);
   });
 
-  await reporter.check('the scanned file was flagged, then read automatically', async () => {
-    // needsOcr is cleared once OCR actually runs -- usedOcr is the lasting
-    // record that this file needed and got the OCR pass.
-    assert.equal(scanned.usedOcr, true, 'the automatic follow-up pass should have read it with OCR');
-    assert.equal(Boolean(scanned.needsOcr), false, 'the needs-OCR flag should be cleared once OCR has run');
-    assert.equal(scanned.extractionMethod, 'ocr');
+  await reporter.check('by default, a scanned file is flagged but left unread -- no automatic OCR pass', async () => {
+    assert.equal(Boolean(flagged.needsOcr), true, 'a scan of paper with no text layer should be flagged for OCR');
+    assert.equal(Boolean(flagged.usedOcr), false, 'OCR must not have run on its own');
+    assert.notEqual(flagged.processingStatus, 'failed');
   });
 
-  await reporter.check('the scanned file is not failed for having no text', async () => {
-    assert.notEqual(scanned.processingStatus, 'failed');
+  await reporter.check('"Run OCR on flagged" is enabled with the flagged file counted', async () => {
+    await scanner.page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
+    const button = scanner.page.getByRole('button', { name: /run ocr on flagged/i });
+    await assert.doesNotReject(button.waitFor({ state: 'visible' }));
+    assert.equal(await button.isDisabled(), false);
+    assert.equal((await button.textContent())?.includes('1'), true, `expected the flagged count to show 1, got: ${await button.textContent()}`);
   });
 
-  await reporter.check('OCR really did run, rather than being skipped', async () => {
+  await reporter.check('clicking "Run OCR on flagged" reads it by hand', async () => {
+    await scanner.page.getByRole('button', { name: /run ocr on flagged/i }).click();
+    const settled = await waitForOcrSettled('scanned-a.pdf', 180_000);
+    assert.equal(settled.usedOcr, true, 'the manual OCR pass should have read it');
+    assert.equal(Boolean(settled.needsOcr), false, 'the needs-OCR flag should be cleared once OCR has run');
+    assert.equal(settled.extractionMethod, 'ocr');
     assert.ok(
-      (scanned.stageLog ?? []).some((entry) => entry.stage === 'ocr_completed'),
+      (settled.stageLog ?? []).some((entry) => entry.stage === 'ocr_completed'),
       'the file never reached OCR'
     );
-    const stats = await scanner.workerStats();
-    assert.ok(stats.created >= 2, `expected a PDF worker and an OCR worker, only ${stats.created} were created`);
   });
 
-  await reporter.check('the readable file was left alone by the automatic OCR pass', async () => {
+  await reporter.check('the readable file was left alone by the manual OCR pass', async () => {
     const untouched = await scanner.findDocument('readable.pdf');
-    assert.equal(Boolean(untouched.usedOcr), false, 'OCR must read only the files that needed it');
+    assert.equal(Boolean(untouched.usedOcr), false, 'OCR must read only the file that needed it');
     assert.equal(untouched.statementSummary?.deposits, 19441.82);
-  });
-
-  await reporter.check('turning OCR off is still the stored default', async () => {
-    const settings = await scanner.readSettings();
-    assert.equal(settings?.mode ?? 'regular', 'regular', 'an automatic OCR pass must not change the scan mode');
   });
 
   await reporter.check('the manual "Run OCR on flagged" control is disabled once nothing needs it', async () => {
     await scanner.page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
     const button = scanner.page.getByRole('button', { name: /run ocr on flagged/i });
     await assert.doesNotReject(button.waitFor({ state: 'visible' }));
-    assert.equal(await button.isDisabled(), true, 'nothing should be left needing OCR after the automatic pass');
+    assert.equal(await button.isDisabled(), true, 'nothing should be left needing OCR after the manual pass');
+  });
+
+  // ---- Opting back in: "Auto-run OCR after scan" on restores the old automatic follow-up ----
+
+  await scanner.setAutoContinueOcr(true);
+  await reporter.check('the auto-continue setting is really stored on', async () => {
+    const settings = await scanner.readSettings();
+    assert.equal(settings?.autoContinueOcr, true);
+  });
+
+  await scanner.addFiles([{ name: 'scanned-b.pdf', bytes: SCANNED_B }]);
+  const autoRead = await waitForOcrSettled('scanned-b.pdf', 180_000);
+
+  await reporter.check('with auto-continue on, a scanned file is read automatically, no click needed', async () => {
+    assert.equal(autoRead.usedOcr, true);
+    assert.equal(Boolean(autoRead.needsOcr), false);
+    assert.equal(autoRead.extractionMethod, 'ocr');
+  });
+
+  await reporter.check('turning OCR mode itself off is still the stored default', async () => {
+    const settings = await scanner.readSettings();
+    assert.equal(settings?.mode ?? 'regular', 'regular', 'an automatic OCR pass must not change the scan mode');
   });
 
   await reporter.check('nothing reached the network and no page error was raised', async () => {

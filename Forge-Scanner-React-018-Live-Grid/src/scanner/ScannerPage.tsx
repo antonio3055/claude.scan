@@ -63,6 +63,8 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
         leads={leads}
         running={scanner.running}
         paused={scanner.paused}
+        settings={scanner.settings}
+        onSettings={(next) => void scanner.setSettings(next)}
         onAddFiles={(files) => void scanner.addFiles(files)}
         onPause={scanner.pause}
         onResume={scanner.resume}

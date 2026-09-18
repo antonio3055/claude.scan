@@ -32,6 +32,13 @@ export function OptionsModal({ settings, onSettings, onClose }: Props) {
           <label className="modal-field">OCR pages
             <input type="number" min="1" max="9999" value={settings.ocrPages} onChange={(e) => onSettings({ ...settings, ocrPages: Math.max(1, Number(e.target.value) || 9999) })} />
           </label>
+          <label className="modal-field" title="OCR is by far the slowest stage. Off: flagged files wait for you to click 'Run OCR on flagged'. On: a regular scan runs OCR on them automatically right after.">
+            Auto-run OCR after scan
+            <select value={settings.autoContinueOcr ? 'on' : 'off'} onChange={(e) => onSettings({ ...settings, autoContinueOcr: e.target.value === 'on' })}>
+              <option value="off">Off -- run manually</option>
+              <option value="on">On -- runs automatically</option>
+            </select>
+          </label>
           <label className="modal-field" title="The application is always scanned first. If its stated revenue is under this amount, that company's statements are skipped. 0 turns this off.">
             Revenue exclusion threshold
             <input type="number" min="0" step="1000" value={settings.revenueExclusionThreshold} onChange={(e) => onSettings({ ...settings, revenueExclusionThreshold: Math.max(0, Number(e.target.value) || 0) })} />

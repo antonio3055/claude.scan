@@ -246,6 +246,13 @@ export async function launchScanner() {
       await this.closeModal();
     },
 
+    /** Off by default: OCR is slow, so a regular scan only auto-continues into it when this is turned on. */
+    async setAutoContinueOcr(enabled) {
+      await this.openOptions();
+      await page.getByLabel('Auto-run OCR after scan').selectOption(enabled ? 'on' : 'off');
+      await this.closeModal();
+    },
+
     /** Upload through the real hidden file input the upload zone uses. */
     async addFiles(files) {
       await page.setInputFiles(
