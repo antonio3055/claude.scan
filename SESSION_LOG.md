@@ -518,3 +518,52 @@ Verified: full 516-test suite (514 + 2 new checks) and `npm run build` both
 clean, plus a real-browser Playwright screenshot confirming the "Running OCR
 (1) -- this is the slow part" status text renders correctly mid-run and the
 toolbar Reg/OCR inputs actually update stored settings when changed.
+
+---
+
+## 2026-09-18 (continued) — Dead-code audit: unused CSS + one orphaned file removed (Scanner 05)
+
+User asked for a general cleanliness pass: any errors, the "3 URLs" thing,
+stale versions, hidden old code/CSS. Investigated each before touching
+anything (per the project's own edit-gate rule):
+
+- **Errors**: none. `tsc`, build, and the full test suite were all clean on
+  latest `main` before this pass started.
+- **"3 URLs"**: not a bug, confirmed again -- one Vercel project always
+  exposes a production domain, a `-git-main-` branch alias, and a
+  per-deployment hash URL. Tried the Vercel API again to double check there
+  is really only one project; this session still has no working access to
+  it (as CLAUDE.md already documents), so this rests on the same reasoning
+  as before, not a fresh API confirmation.
+- **Stale versions**: the 15 `Forge-Scanner-React-0NN-*` folders are the
+  documented, intentional historical rollback snapshots (see CLAUDE.md) --
+  inert, not built, not deployed. Left untouched.
+- **Dead code, found and removed**: a systematic sweep (every CSS class
+  cross-referenced against every `.tsx`/`.ts` file's `className`/template
+  usage, every source file cross-referenced for being imported anywhere,
+  every declared dependency cross-referenced for being consumed) turned up
+  real leftovers from the old, already-replaced three-panel layout and its
+  paired-info company/contact side panel (see the very first entry in this
+  log for that redesign):
+  - CSS: `.scanner-panel` / `.scanner-panel-head` and its sub-rules
+    (`scanner.css`) -- the old panel header style, nothing uses it now that
+    `QueuePanel`/`LeadsSheet`/`AuditTable` are their own components.
+  - CSS: `.bullet-list` / `.bullet-item` / `.bullet-sep` / `.bullet-dot` /
+    `.statement-cell b` (`scanner.css`) -- from the old side panel's
+    bulleted field lists.
+  - CSS: `.audit-details` (`scanner.css`) -- unreferenced.
+  - CSS: `.differs` and `.statement-identity` + its 3 sub-rules (`app.css`)
+    -- the old side panel's "value differs from the application" styling;
+    the current design's equivalent is `.differs-badge`/`.differs-value` in
+    `scanner.css`, which **are** used and were left alone.
+  - File: `src/scanner/lib/pitch.ts` (`buildSalesPitch`) -- exported, never
+    imported by anything. Deleted.
+  No duplicate CSS selectors, no `console.log`/`debugger` leftovers, no
+  TODO/FIXME markers, and no unused dependencies in `package.json` were
+  found.
+
+Verified: `tsc --noEmit` and the full 516-test suite both still clean;
+`npm run build`'s CSS bundle shrank (17.97 kB → 16.89 kB gzip'd, confirming
+the removed rules were real dead weight, not a no-op); a real-browser
+Playwright screenshot after the cleanup shows Results/Scan Audit rendering
+identically to before, with zero console or page errors.

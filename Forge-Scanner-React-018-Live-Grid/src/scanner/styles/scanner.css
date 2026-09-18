@@ -29,29 +29,6 @@
   font-size: 13px;
 }
 
-.scanner-panel {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.scanner-panel-head {
-  min-height: 52px;
-  flex: 0 0 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 14px;
-  border-bottom: 1px solid var(--line);
-}
-.scanner-panel-head > div:first-child { min-width: 0; }
-.scanner-panel-head h2 { margin: 0; font-size: 15px; line-height: 1.1; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scanner-panel-head span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.1; }
 .head-actions { display: flex; align-items: center; gap: 6px; }
 
 /* ---------- Top toolbar (upload + run controls + stats) ---------- */
@@ -195,13 +172,6 @@
 .col-resize-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
 .col-resize-handle:hover, .col-resize-handle:active { background: var(--accent); opacity: 0.5; }
 
-/* Never wraps: a cell is one line, always. Widen the column (drag its
-   resize handle) or hover for the full value in a tooltip instead. */
-.bullet-list { display: inline; white-space: nowrap; }
-.bullet-item { display: inline; }
-.bullet-sep, .bullet-dot { margin: 0 4px; color: var(--dim); }
-.statement-cell b { font-weight: 700; color: var(--accent-strong); }
-
 .differs-badge { margin-left: 8px; color: var(--warn); font-weight: 700; cursor: help; }
 .company-name-wrap { position: relative; display: inline-block; }
 .flag-dot {
@@ -236,7 +206,6 @@
 .audit-table-body { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .audit-table-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
 .audit-table-actions label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.audit-details { max-width: 320px; }
 .row-duplicate .sheet-cell { background: #fdf6ee; }
 
 .grid-badge {
