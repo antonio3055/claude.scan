@@ -8,6 +8,7 @@ import { useColumnOrder } from '../hooks/useColumnOrder';
 
 interface Props {
   leads: ScannerLead[];
+  running: boolean;
   onExport: () => void;
   onRemoveUnassociated: (fileIds: string[]) => void;
 }
@@ -49,9 +50,15 @@ const COLUMN_LABELS: Record<string, string> = {
 const DEFAULT_ORDER = ['company', 'owner', 'revenue', 'approval', 'phone', 'email', 'address', 'appDate', 'statements', 'bank', 'bsd', 'mca', 'score'];
 const NUMERIC_COLUMNS = new Set(['revenue', 'approval']);
 
-function Diff({ value, title }: { value: string; title: string }) {
-  if (!value) return null;
-  return <span className="differs-badge" title={title}>⚠ <span className="differs-value">{value}</span></span>;
+/** One plain bullet, an amber primary value, and the other source's value right after it, muted -- no icon, no dot. */
+function FlaggedValue({ value, alt, title }: { value: string; alt?: string; title: string }) {
+  return (
+    <span title={title}>
+      <span className="flag-bullet">•</span>
+      <span className="flag-amber">{value}</span>
+      {alt && <span className="flag-alt"> ({alt})</span>}
+    </span>
+  );
 }
 
 /** One bullet per statement: month label, unrounded deposits, unrounded ending balance. */
@@ -95,7 +102,7 @@ function reconciliationBadge(lead: ScannerLead) {
   return <span className="recon-badge good" title="Every statement reconciles against the bank's own printed summary">✓ {checked.length}/{checked.length}</span>;
 }
 
-export function LeadsSheet({ leads, onExport, onRemoveUnassociated }: Props) {
+export function LeadsSheet({ leads, running, onExport, onRemoveUnassociated }: Props) {
   const [sortMode, setSortMode] = useState<'revenue' | 'company'>('revenue');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -153,7 +160,7 @@ export function LeadsSheet({ leads, onExport, onRemoveUnassociated }: Props) {
         </div>
       </header>
 
-      {missingCompany > 0 && (
+      {missingCompany > 0 && !running && (
         <div className="unmatched-warning">
           <span>
             ⚠ {missingCompany} document{missingCompany === 1 ? '' : 's'} could not be matched to a company —
@@ -208,19 +215,21 @@ export function LeadsSheet({ leads, onExport, onRemoveUnassociated }: Props) {
           const statements = statementText(lead);
           const bank = bankText(lead);
           const mca = mcaText(lead);
+          const nameFlagged = info.nameDiffers || info.dbaDiffers;
+          const companyFlagged = nameFlagged || lead.possibleSameBusinessAs.length > 0;
+          const companyAlt = [...(nameFlagged ? altNames : []), ...lead.possibleSameBusinessAs].join(', ');
+          const companyTitle = [
+            nameFlagged ? 'The bank statements print a different name/DBA than the application.' : null,
+            lead.possibleSameBusinessAs.length > 0
+              ? `No matching name/address in this batch, but could be the same business as: ${lead.possibleSameBusinessAs.join(', ')}`
+              : null
+          ].filter(Boolean).join(' ');
           const cells: Record<string, ReactNode> = {
             company: (
               <>
-                <span className="company-name-wrap">
-                  {lead.possibleSameBusinessAs.length > 0 && (
-                    <span
-                      className="flag-dot"
-                      title={`No matching name/address in this batch, but could be the same business as: ${lead.possibleSameBusinessAs.join(', ')}`}
-                    />
-                  )}
-                  <strong className={lead.possibleSameBusinessAs.length > 0 ? 'flag-strong-text' : undefined}>{lead.companyName}</strong>
-                </span>
-                {(info.nameDiffers || info.dbaDiffers) && <Diff value={altNames.join(', ')} title="The bank statements print a different name/DBA than the application" />}
+                {companyFlagged
+                  ? <FlaggedValue value={lead.companyName} alt={companyAlt} title={companyTitle} />
+                  : <strong>{lead.companyName}</strong>}
                 {lead.duplicateCount > 0 && <span className="dup-badge" title={`${lead.duplicateCount} duplicate file(s) excluded from these numbers`}>⧉ {lead.duplicateCount}</span>}
               </>
             ),
@@ -229,12 +238,15 @@ export function LeadsSheet({ leads, onExport, onRemoveUnassociated }: Props) {
             approval: money(potentialApproval(lead.revenue)),
             phone: displayList(app?.phones, lead.application).join(' • '),
             email: displayList(app?.emails, lead.application).join(' • '),
-            address: (
-              <>
-                {displayValue(info.applicationAddress ?? info.statementAddresses[0], [lead.application, ...lead.statements])}
-                {info.addressDiffers && <Diff value={info.statementAddresses.join(', ')} title="The bank statements print a different address than the application" />}
-              </>
-            ),
+            address: info.addressDiffers
+              ? (
+                <FlaggedValue
+                  value={info.applicationAddress ?? info.statementAddresses[0] ?? ''}
+                  alt={info.statementAddresses.join(', ')}
+                  title="The bank statements print a different address than the application"
+                />
+              )
+              : displayValue(info.applicationAddress ?? info.statementAddresses[0], [lead.application, ...lead.statements]),
             appDate: displayValue(app?.appDate, lead.application),
             statements,
             bank,

@@ -172,14 +172,13 @@
 .col-resize-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
 .col-resize-handle:hover, .col-resize-handle:active { background: var(--accent); opacity: 0.5; }
 
-.differs-badge { margin-left: 8px; color: var(--warn); font-weight: 700; cursor: help; }
-.company-name-wrap { position: relative; display: inline-block; }
-.flag-dot {
-  position: absolute; top: -3px; left: -5px; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--warn-strong); cursor: help;
-}
-.flag-strong-text { color: var(--warn-strong); }
-.differs-value { font-weight: 600; }
+/* A cell whose value differs from another source, or otherwise needs a
+   second look (e.g. a possible same-business match) -- one plain bullet
+   plus an amber primary value, no icon or dot, the other value plain and
+   muted right after it so the cell stays readable at a glance. */
+.flag-bullet { color: var(--warn-strong); margin-right: 4px; font-weight: 900; cursor: help; }
+.flag-amber { color: var(--warn-strong); cursor: help; }
+.flag-alt { color: var(--muted); font-weight: 500; cursor: help; }
 .dup-badge { margin-left: 8px; padding: 1px 6px; border-radius: 5px; background: var(--bad-soft); color: var(--bad); font-size: 9.5px; font-weight: 700; cursor: help; }
 
 .score-cell { display: flex; align-items: center; gap: 6px; }

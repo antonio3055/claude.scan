@@ -96,9 +96,10 @@ try {
       const row = document.querySelector('.leads-sheet .sheet-row:not(.sheet-head-row)');
       const cell = row?.querySelectorAll('.sheet-cell')[i];
       if (!cell) return null;
-      const differsValue = cell.querySelector('.differs-value')?.textContent ?? null;
-      const full = cell.textContent ?? '';
-      const primary = differsValue ? full.slice(0, full.indexOf('⚠')).trim() : full.trim();
+      const amber = cell.querySelector('.flag-amber')?.textContent ?? null;
+      const altRaw = cell.querySelector('.flag-alt')?.textContent ?? null;
+      const differsValue = altRaw ? altRaw.replace(/^\s*\(|\)\s*$/g, '') : null;
+      const primary = amber ?? (cell.textContent ?? '').trim();
       return { primary, differsValue };
     }, index);
 
