@@ -22,25 +22,3 @@ button { color: inherit; }
    own scrollbar takes over once content (e.g. a long Scan Audit) needs more
    room, instead of trapping everything inside fixed-height inner panels. */
 .demo-shell { width: 100vw; min-height: 100vh; min-width: 1200px; padding: 12px; background: #f5f6f8; }
-
-/* A value the statements print differently from the application. */
-.differs {
-  font-style: normal;
-  font-weight: 600;
-  color: #b45309;
-}
-
-/* What the bank prints, laid out like the application blocks above it. */
-.statement-identity > div {
-  display: flex;
-  gap: 10px;
-  padding: 4px 0;
-}
-.statement-identity dt {
-  flex: 0 0 132px;
-  color: #64748b;
-}
-.statement-identity dd {
-  margin: 0;
-  word-break: break-word;
-}
