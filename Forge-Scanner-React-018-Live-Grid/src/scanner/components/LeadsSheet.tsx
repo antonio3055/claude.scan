@@ -200,6 +200,11 @@ export function LeadsSheet({ leads, onExport }: Props) {
                 <strong>{lead.companyName}</strong>
                 {(info.nameDiffers || info.dbaDiffers) && <Diff value={altNames.join(', ')} title="The bank statements print a different name/DBA than the application" />}
                 {lead.duplicateCount > 0 && <span className="dup-badge" title={`${lead.duplicateCount} duplicate file(s) excluded from these numbers`}>⧉ {lead.duplicateCount}</span>}
+                {lead.possibleSameBusinessAs && (
+                  <span className="differs-badge" title={`Same address as "${lead.possibleSameBusinessAs}" — might be the same business banking under a different name`}>
+                    ⚠ possibly {lead.possibleSameBusinessAs}
+                  </span>
+                )}
               </>
             ),
             owner: displayValue(app?.fullName, lead.application),

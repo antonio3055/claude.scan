@@ -67,10 +67,36 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
     const companyInfo = buildCompanyInfo(application, docs);
     const duplicateCount = docs.filter((d) => d.duplicateOfFileId).length;
 
-    leads.push({ id, companyName, ownerName, revenue: Number(revenue) || 0, extractionScore: extraction, status, docs, application, statements, mtdDocs, issues, companyInfo, duplicateCount });
+    leads.push({ id, companyName, ownerName, revenue: Number(revenue) || 0, extractionScore: extraction, status, docs, application, statements, mtdDocs, issues, companyInfo, duplicateCount, possibleSameBusinessAs: null });
   });
 
+  flagSameAddressAcrossNames(leads);
+
   return leads.sort((a, b) => b.revenue - a.revenue || b.extractionScore - a.extractionScore || a.companyName.localeCompare(b.companyName));
+}
+
+/**
+ * An application-only lead (no matched statements) and a statement-only lead
+ * (no matched application) at the same address are worth a look by hand: the
+ * engine only groups documents by name, so the same real business banking
+ * under a different name than it applied under shows up as two separate
+ * leads with no way to connect them on its own. Flags both sides; nothing is
+ * merged or scored differently.
+ */
+function flagSameAddressAcrossNames(leads: ScannerLead[]) {
+  const engine = getScannerEngine();
+  const appOnly = leads.filter((l) => l.application && l.statements.length === 0 && l.companyInfo.applicationAddress);
+  const statementOnly = leads.filter((l) => !l.application && l.statements.length > 0 && l.companyInfo.statementAddresses.length);
+  for (const app of appOnly) {
+    for (const stmt of statementOnly) {
+      const matches = stmt.companyInfo.statementAddresses.some((address) =>
+        engine.holderAddress.sameAddress(address, app.companyInfo.applicationAddress)
+      );
+      if (!matches) continue;
+      app.possibleSameBusinessAs = stmt.companyName;
+      stmt.possibleSameBusinessAs = app.companyName;
+    }
+  }
 }
 
 /** Distinct, trimmed values in the order they were read. */

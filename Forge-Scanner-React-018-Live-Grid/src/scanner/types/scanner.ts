@@ -147,6 +147,13 @@ export interface ScannerLead {
   };
   /** Documents in this group flagged as a duplicate of another file — excluded from revenue, kept in the audit trail. */
   duplicateCount: number;
+  /**
+   * Another lead's company name, set when this lead has only an application
+   * (no statements) or only statements (no application) and the other lead
+   * is the complementary case at the same address -- the two may be one
+   * business that banks under a different name than it applied under.
+   */
+  possibleSameBusinessAs: string | null;
 }
 
 export interface Rep {
