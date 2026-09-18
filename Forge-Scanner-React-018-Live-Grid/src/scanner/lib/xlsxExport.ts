@@ -2,8 +2,8 @@ import type { ScannerLead } from '../types/scanner';
 import { roundDisplayAmount, potentialApproval } from './displayRules';
 
 const HEADER = [
-  'Company', 'Owner', 'Phone', 'Email', 'Address', 'App date', 'Statements', 'Bank',
-  'Revenue', 'Approval', 'BSD', 'MCA', 'Score', 'Status', 'Duplicates excluded'
+  'Company', 'Owner', 'Revenue', 'Approval', 'Phone', 'Email', 'Address', 'App date', 'Statements', 'Bank',
+  'BSD', 'MCA', 'Score', 'Status', 'Duplicates excluded'
 ];
 
 function statementsText(lead: ScannerLead): string {
@@ -33,14 +33,14 @@ function row(lead: ScannerLead): (string | number | boolean | null)[] {
   return [
     lead.companyName,
     app?.fullName ?? null,
+    roundDisplayAmount(lead.revenue),
+    potentialApproval(lead.revenue),
     (app?.phones ?? []).join(' • ') || null,
     (app?.emails ?? []).join(' • ') || null,
     lead.companyInfo.applicationAddress ?? lead.companyInfo.statementAddresses[0] ?? null,
     app?.appDate ?? null,
     statementsText(lead) || null,
     banks.join(' • ') || null,
-    roundDisplayAmount(lead.revenue),
-    potentialApproval(lead.revenue),
     app?.businessStartDate ?? null,
     mcaText(lead) || null,
     lead.extractionScore,
@@ -49,14 +49,26 @@ function row(lead: ScannerLead): (string | number | boolean | null)[] {
   ];
 }
 
+/**
+ * Short and unique on every export, never the same name twice: initials
+ * (who ran it, so it's obvious at a glance who it was sent to) + month.day
+ * + lead count + an "L" for leads + hour/minute, e.g. "MM9.17.13L1342.xlsx".
+ * The minute-level time is what actually guarantees uniqueness -- date and
+ * lead count alone collide if the same batch is exported twice in an hour.
+ */
+function exportFilename(initials: string, leadCount: number): string {
+  const now = new Date();
+  const stamp = `${now.getMonth() + 1}.${now.getDate()}.${leadCount}L${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  return `${initials ? initials.toUpperCase() : ''}${stamp}.xlsx`;
+}
+
 /** Exports exactly what the Results sheet shows: one row per company. */
-export async function exportLeadsToXlsx(leads: ScannerLead[]): Promise<void> {
+export async function exportLeadsToXlsx(leads: ScannerLead[], exporterInitials = ''): Promise<void> {
   const XLSX = await import('xlsx');
   const rows = leads.filter((l) => l.companyName !== 'Unassociated');
   const sheet = XLSX.utils.aoa_to_sheet([HEADER, ...rows.map(row)]);
   sheet['!cols'] = HEADER.map((h) => ({ wch: Math.max(10, h.length + 2) }));
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, 'Results');
-  const stamp = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(workbook, `forge-scanner-results-${stamp}.xlsx`);
+  XLSX.writeFile(workbook, exportFilename(exporterInitials, rows.length));
 }
