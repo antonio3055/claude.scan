@@ -157,7 +157,94 @@ test environment's TLS-intercepting proxy, not a reproducible production
 defect. No code change made here — don't re-"fix" this without new
 evidence it's real.
 
-**Vercel cleanup (6 leftover projects)**: still open, not done this
-session — deleting a Vercel project isn't exposed through this session's
-available tools (only pause/unpause), so it needs the user to do it (or a
-session with fuller Vercel access).
+**Vercel cleanup (6 leftover projects)**: done by the user directly in the
+Vercel dashboard (this session still has no delete tool for it — confirmed
+again this session, only pause/unpause are exposed).
+
+---
+
+## 2026-09-18 (continued) — OCR auto-continue, same-address flag, PR #2 merged
+
+PR #2 (the unmatched-document warning banner, above) merged to `main`
+(squash, matching this repo's existing linear history). Branch reset to
+latest `main` and two more requested changes built fresh on top of it,
+each verified live in a browser against a local `vite preview` build (real
+Playwright runs, synthetic PDFs built with `scripts/lib/fixtures.mjs`'s
+`buildTextPdf`/`buildImageOnlyPdf` — not just `tsc`/unit tests), plus the
+full existing regression suite + build.
+
+**OCR now auto-continues after a regular scan**, instead of requiring the
+user to click "Run OCR on flagged" by hand. `useScannerQueue.ts`'s
+`runQueue` takes an `isOcrPass` flag (default false); when a *regular*
+pass finishes and `ocrCandidateDocuments()` finds anything flagged
+`needsOcr`, it now automatically calls `runOcrOnFlagged()` once.
+`runOcrOnFlagged` itself calls `runQueue(true)`, so an OCR pass can never
+trigger *another* auto-continue — this is the guard against a file that
+fails OCR outright (stays `needsOcr: true, usedOcr: false` forever) auto-
+retrying in an infinite loop. The manual "Run OCR on flagged" button is
+kept (still useful after adding more files later, or retrying by hand).
+Verified live: uploaded an image-only PDF, clicked "Start" exactly once,
+confirmed via the Scan Audit table that it went through OCR
+(`Text: OCR`, `OCR: Yes`) with no second click.
+
+**Same-address cross-reference flag, built** (the Metro Mart/Everfresh
+idea from the first session, previously deferred pending a second real
+occurrence — the user asked for it now regardless). `lib/leads.ts` now
+runs `flagSameAddressAcrossNames()` after grouping: any lead with an
+application and zero matched statements, and any lead with matched
+statements and no application, at the same address (via the existing
+`engine.holderAddress.sameAddress`), get a new `possibleSameBusinessAs`
+field pointing at each other's company name. Nothing is merged or
+rescored — it is purely a flag. Rendered as a badge next to the company
+name in `LeadsSheet.tsx`: "⚠ possibly \<other company\>". Verified live
+with two synthetic documents (an application and a statement, different
+company names, same address) — both leads showed the badge pointing at
+each other.
+
+No unit-test harness exists for `lib/leads.ts` (it's TypeScript; the
+existing `scripts/test-*.mjs` suite only imports the plain-JS engine under
+`src/scanner/engine/`, which Node can run directly) — verification for
+both of these changes is `tsc` + `vite build` + the full existing suite
+(regression) + a real-browser Playwright check specific to each new
+behavior (feature correctness). If `lib/leads.ts` grows more logic like
+this, it may be worth wiring up a TS-aware test runner for it.
+
+---
+
+## 2026-09-18 (continued) — Same-business flag: broadened + restyled, on PR #3
+
+Two rounds of user feedback on the same-address flag above, both applied
+directly to `claude/magical-gates-w0kw08` / PR #3 before it merged:
+
+**Broadened the match.** The user pointed out an app-only lead and a
+statement-only lead can be the same real business even when neither the
+name nor the address line up (an old address on file, a typo, a business
+that moved) — the address-match requirement was too narrow. `lib/leads.ts`
+now drops the `sameAddress` check entirely: `flagPossibleSameBusiness`
+(renamed from `flagSameAddressAcrossNames`) flags every application-only
+lead against every statement-only lead in the batch, unconditionally.
+`possibleSameBusinessAs` changed from `string | null` to `string[]` to
+carry more than one candidate when there's more than one orphan on each
+side (uncommon, but the type has to allow it now that there's no filter
+narrowing the pairs).
+
+**Restyled the flag.** The inline "⚠ possibly \<company\>" badge widened
+the Company column and was unreadable without manually resizing it — not
+something the person doing the review should have to do to see a warning.
+Replaced with: a small solid amber dot pinned to the top-left corner of
+the company name (`.flag-dot`, absolutely positioned inside a
+`position: relative` wrapper, so it overlays the first letter without
+shifting anything or affecting row height/column width), and the company
+name text itself recolored a darker amber (`.flag-strong-text`, new
+`--warn-strong: #7a4c05` variable next to the existing `--warn`/
+`--warn-soft`). The full "possibly the same as X" detail moved to the
+dot's hover tooltip instead of being shown inline. Scoped to only this
+badge — the existing name/DBA/address-differs badges and the duplicate
+badge were left as they were; nobody asked for those to change.
+
+Verified live in a local `vite preview` build with two synthetic
+documents that share neither a name nor an address (`Northgate Traders
+LLC` / `90 Main Street, Austin, TX` vs `SOUTHVIEW WHOLESALE CORP` / `210
+Oak Ridge Dr, Reno, NV`) — both leads got the dot, pointing at each other,
+with no address or name overlap at all. Full regression suite (309 tests)
+and build still clean.

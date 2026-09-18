@@ -307,7 +307,14 @@ export function useScannerQueue() {
     return error?.message || String(error);
   };
 
-  const runQueue = useCallback(async () => {
+  /**
+   * `isOcrPass` marks a run started to read files the regular scan flagged.
+   * A regular scan automatically follows up with exactly one OCR pass on
+   * whatever it flagged; an OCR pass never triggers another one, so a file
+   * that fails OCR outright (still `needsOcr`, never `usedOcr`) cannot loop
+   * forever -- the next auto-continue only happens after a *regular* pass.
+   */
+  const runQueue = useCallback(async (isOcrPass = false) => {
     if (runningRef.current) return;
     runningRef.current = true;
     setRunning(true);
@@ -394,6 +401,11 @@ export function useScannerQueue() {
       // with its own copy of the WASM core and language data — while the
       // scanner sits idle would cost memory for nothing.
       await resetScannerWorkers();
+    }
+
+    if (!isOcrPass && !stopRequestedRef.current) {
+      const candidates = ocrCandidateDocuments(docsRef.current) as ScannerDocument[];
+      if (candidates.length) await runOcrOnFlagged();
     }
   }, [processFile, updateDoc, waitIfPaused]);
 
@@ -483,7 +495,7 @@ export function useScannerQueue() {
         updateDoc(doc.fileId, { ...(requeuePatch() as Partial<ScannerDocument>), forceOcr: true })
       )
     );
-    void runQueue();
+    void runQueue(true);
   }, [runQueue, updateDoc]);
 
   const retryFailed = useCallback(async () => {

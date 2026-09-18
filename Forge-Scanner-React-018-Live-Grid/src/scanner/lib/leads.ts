@@ -67,10 +67,33 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
     const companyInfo = buildCompanyInfo(application, docs);
     const duplicateCount = docs.filter((d) => d.duplicateOfFileId).length;
 
-    leads.push({ id, companyName, ownerName, revenue: Number(revenue) || 0, extractionScore: extraction, status, docs, application, statements, mtdDocs, issues, companyInfo, duplicateCount });
+    leads.push({ id, companyName, ownerName, revenue: Number(revenue) || 0, extractionScore: extraction, status, docs, application, statements, mtdDocs, issues, companyInfo, duplicateCount, possibleSameBusinessAs: [] });
   });
 
+  flagPossibleSameBusiness(leads);
+
   return leads.sort((a, b) => b.revenue - a.revenue || b.extractionScore - a.extractionScore || a.companyName.localeCompare(b.companyName));
+}
+
+/**
+ * An application-only lead (no matched statements) and a statement-only lead
+ * (no matched application) are always worth a look by hand, matching name
+ * and address or not: the engine only groups documents by name, so the same
+ * real business banking under a different name -- at a different address
+ * than the one on file, an old address, a typo -- shows up as two separate
+ * leads with no way to connect them on its own. Flags both sides against
+ * every candidate on the other side; nothing is merged or scored
+ * differently.
+ */
+function flagPossibleSameBusiness(leads: ScannerLead[]) {
+  const appOnly = leads.filter((l) => l.application && l.statements.length === 0);
+  const statementOnly = leads.filter((l) => !l.application && l.statements.length > 0);
+  for (const app of appOnly) {
+    for (const stmt of statementOnly) {
+      app.possibleSameBusinessAs.push(stmt.companyName);
+      stmt.possibleSameBusinessAs.push(app.companyName);
+    }
+  }
 }
 
 /** Distinct, trimmed values in the order they were read. */
