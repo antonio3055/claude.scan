@@ -28,7 +28,7 @@ const SUITES = [
   { name: 'Offline browser (PDF.js + Tesseract)', script: 'scripts/test-offline-browser.mjs', needsBuild: true },
   { name: 'Stop cancellation (real browser)', script: 'scripts/test-stop-browser.mjs', needsBuild: true },
   { name: 'Queue failure (real browser)', script: 'scripts/test-queue-browser.mjs', needsBuild: true },
-  { name: 'Manual OCR (real browser)', script: 'scripts/test-manual-ocr-browser.mjs', needsBuild: true },
+  { name: 'OCR auto-continue (real browser)', script: 'scripts/test-manual-ocr-browser.mjs', needsBuild: true },
   { name: 'Company info (real browser)', script: 'scripts/test-company-info-browser.mjs', needsBuild: true }
 ];
 

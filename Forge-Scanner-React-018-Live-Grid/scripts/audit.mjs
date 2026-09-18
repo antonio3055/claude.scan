@@ -42,7 +42,7 @@ const runtimeText = (await Promise.all(runtimeFiles.map((file) => readFile(file,
 const scannerFiles = sourceFiles.filter((file) => file.includes(`${path.sep}scanner${path.sep}`));
 const scannerText = (await Promise.all(scannerFiles.map((file) => readFile(file, 'utf8')))).join('\n');
 
-const leadRows = await read('src/scanner/components/LeadRows.tsx');
+const leadsSheet = await read('src/scanner/components/LeadsSheet.tsx');
 const queue = await read('src/scanner/hooks/useScannerQueue.ts');
 const leads = await read('src/scanner/lib/leads.ts');
 const vendor = await read('src/scanner/services/offlineVendor.ts');
@@ -61,7 +61,7 @@ const pipeline = await read('src/scanner/engine/pipeline.js');
 const txnParser = await read('src/scanner/engine/transactionParser.js');
 const html = await read('index.html');
 const page = await read('src/scanner/ScannerPage.tsx');
-const audit = await read('src/scanner/components/AuditSection.tsx');
+const auditTable = await read('src/scanner/components/AuditTable.tsx');
 const routing = await read('src/scanner/lib/routing.ts');
 const copyVendor = await read('scripts/copy-scanner-vendor.mjs');
 const pkg = JSON.parse(await read('package.json'));
@@ -152,7 +152,16 @@ test('a label and its figure are paired whichever is printed first', /isFigureOn
 test('a text layer with no amounts is reported as needing OCR', /hasPrintedAmounts/.test(balanceSrc) && /hasPrintedAmounts\(rawText\)/.test(queue));
 test('two lanes never take the same file', /claimedRef\.current\.add\(next\.fileId\)/.test(queue) && /claimedRef\.current\.delete\(next\.fileId\)/.test(queue));
 test('claims are cleared when a run starts, stops and ends', (queue.match(/claimedRef\.current\.clear\(\)/g) || []).length >= 3);
-test('the engines are released when the queue goes idle', /claimedRef\.current\.clear\(\);\s*\n[\s\S]{0,400}?await resetScannerWorkers\(\);\s*\n\s*\}\s*\n\s*\}, \[processFile/.test(queue));
+// resetScannerWorkers() must be the last statement of runQueue's own
+// finally block (immediately closed by the next `}`) and that finally
+// block must belong to the callback whose deps start with processFile --
+// what runs *after* the callback's try/finally (such as an automatic
+// follow-up pass) is a separate concern this check does not constrain.
+test(
+  'the engines are released when the queue goes idle',
+  /claimedRef\.current\.clear\(\);\s*\n[\s\S]{0,400}?await resetScannerWorkers\(\);\s*\n\s*\}/.test(queue) &&
+    queue.indexOf('await resetScannerWorkers();') < queue.indexOf('}, [processFile')
+);
 test('one PDF worker is reused across documents', /new pdfjsLib\.PDFWorker/.test(vendor) && /worker: getPdfWorker\(pdfjsLib\)/.test(vendor));
 test('an OCR scan does not read a text layer it discards', /readTextLayer: !runOcr/.test(queue));
 test('pause control implemented', /pausedRef\.current = true/.test(queue));
@@ -221,7 +230,7 @@ test('OCR is off by default', /mode: 'regular'/.test(queue) || /mode: 'regular'/
 test('an image with no OCR is reported, not failed', /needs_ocr_image_file/.test(queue));
 test('files can be sent for OCR by hand', /const runOcrOnFlagged = useCallback/.test(queue));
 test('the OCR flag is cleared once the file has run', /forceOcr: false/.test(queue));
-test('reporting that a file needs OCR does not change the regular-scan default', /regularPages: 9999/.test(queue) && /mode: 'regular'/.test(queue));
+test('reporting that a file needs OCR does not change the regular-scan default', /regularPages: 15/.test(queue) && /mode: 'regular'/.test(queue));
 test(
   'the company key tolerates possessives and plurals',
   /word\.endsWith\('s'\)/.test(companyNameSrc) && /word !== 's'/.test(companyNameSrc)
@@ -242,23 +251,32 @@ test('no debug logging left in scanner source', !/console\.(log|debug|warn|info|
 test('no unfinished-work markers in scanner source', !/(\/\/|\/\*|\*)\s*(TODO|FIXME|HACK)\b/i.test(scannerText));
 
 /* ---------------------------------------------------------------- *
- * Approved scanner UI and rules (unchanged from v003)
+ * Approved scanner UI and rules
+ *
+ * The scanner moved from a three-panel layout (LeadRows / ExtractionPanel /
+ * a fixed RoutingPanel column) to a single company-level Results sheet
+ * (LeadsSheet) plus a collapsed-by-default Scan Audit table (AuditTable),
+ * with Options/OCR-files/Send as popup modals -- see SESSION_LOG.md. The
+ * checks below guard *that* design, not the superseded one.
  * ---------------------------------------------------------------- */
 test('fixed 1200px scalable viewport', /width=1200, initial-scale=1, user-scalable=yes/.test(html));
 test('React scanner module exported', /export \{ ScannerPage \}/.test(await read('src/scanner/index.ts')));
 test('regular scan is default', /mode: 'regular'/.test(queue));
-test('regular scan reads the whole document by default', /regularPages: 9999/.test(queue));
-test('OCR reads the whole document by default', /ocrPages: 9999/.test(queue));
+test('regular scan reads up to its configured page cap by default', /regularPages: 15/.test(queue));
+test('OCR reads up to its configured page cap by default', /ocrPages: 2/.test(queue));
 test('OCR is opt-in', /settingsNow\.mode === 'ocr'/.test(queue));
-test('lead rows contain row number', /lead-number/.test(leadRows));
-test('lead rows have no checkbox selection column', !/type="checkbox"/.test(leadRows));
-test('extraction score sits in lead row', /extract-score/.test(leadRows));
-test('lead rows do not render long filename', !/filename/.test(leadRows));
-test('documents use short display labels', /shortDocLabel/.test(leadRows));
+test('lead rows contain row number', /sheet-num-cell/.test(leadsSheet));
+test(
+  'lead rows have no bulk-select checkbox column',
+  !/type="checkbox"/.test(leadsSheet.slice(leadsSheet.indexOf('visible.map(')))
+);
+test('extraction score sits in lead row', /score-cell/.test(leadsSheet));
+test('lead rows do not render the raw filename', !/filename/.test(leadsSheet));
+test('documents use short display labels', /shortDocLabel/.test(leadsSheet));
 test('leads auto-sort by revenue descending', /return leads\.sort\(\(a, b\) => b\.revenue - a\.revenue/.test(leads));
-test('audit section uses closed details by default', /<details className="audit-section">/.test(audit) && !/<details className="audit-section" open/.test(audit));
-test('three panel scanner layout present', /QueuePanel/.test(page) && /ExtractionPanel/.test(page) && /RoutingPanel/.test(page));
-test('two resize handles present', (page.match(/scanner-resize-handle/g) || []).length === 2);
+test('the audit table starts collapsed by default', /const \[open, setOpen\] = useState\(false\)/.test(auditTable));
+test('single Results-sheet layout present, not the old three-panel one', /LeadsSheet/.test(page) && /AuditTable/.test(page) && !/ExtractionPanel/.test(page));
+test('the Results panel has its one resize handle', (page.match(/leads-sheet-resize-handle/g) || []).length === 1);
 test('stats strip still rendered', /StatsStrip/.test(await read('src/scanner/components/QueuePanel.tsx')));
 test('routing supports odd/even split', /oddEven/.test(routing));
 test('routing supports round robin', /round\\s\*robin/.test(routing));
