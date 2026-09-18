@@ -206,28 +206,44 @@ export async function launchScanner() {
       await page.waitForSelector('input[type=file]', { state: 'attached' });
     },
 
-    /** Drive the approved UI's own scan-mode control. */
-    async setScanMode(mode) {
+    /** Open the Options popup, exactly as a user would (via the "..." menu). */
+    async openOptions() {
       await page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
-      await page.selectOption('.scan-settings select', mode);
+      await page.getByRole('button', { name: /^options…?$/i }).click();
+      await page.waitForSelector('.scanner-modal-body');
+    },
+
+    /** Close whatever popup modal is open. */
+    async closeModal() {
+      await page.getByTitle('Close').click();
+      await page.waitForSelector('.scanner-modal-overlay', { state: 'detached' });
+    },
+
+    /** Drive the approved UI's own scan-mode control, in the Options popup. */
+    async setScanMode(mode) {
+      await this.openOptions();
+      await page.getByLabel('Scan mode').selectOption(mode);
       await page.waitForFunction(
-        (expected) => document.querySelector('.scan-settings select')?.value === expected,
+        (expected) => document.querySelector('.scanner-modal-body select')?.value === expected,
         mode
       );
+      await this.closeModal();
     },
 
     async setRegularPages(count) {
-      await page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
-      const input = page.locator('.scan-settings input[type=number]').nth(0);
+      await this.openOptions();
+      const input = page.getByLabel('Regular pages');
       await input.fill(String(count));
       await input.dispatchEvent('change');
+      await this.closeModal();
     },
 
     async setOcrPages(count) {
-      await page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
-      const input = page.locator('.scan-settings input[type=number]').nth(1);
+      await this.openOptions();
+      const input = page.getByLabel('OCR pages');
       await input.fill(String(count));
       await input.dispatchEvent('change');
+      await this.closeModal();
     },
 
     /** Upload through the real hidden file input the upload zone uses. */

@@ -248,3 +248,88 @@ LLC` / `90 Main Street, Austin, TX` vs `SOUTHVIEW WHOLESALE CORP` / `210
 Oak Ridge Dr, Reno, NV`) — both leads got the dot, pointing at each other,
 with no address or name overlap at all. Full regression suite (309 tests)
 and build still clean.
+
+---
+
+## 2026-09-18 (continued) — Fixed all 5 failing `npm run test:suites` suites (Scanner 04)
+
+`npm run test:suites` on `main` was 357 passed / 16 failed across 15
+suites (Clean-code audit, Offline browser, Stop cancellation, Manual OCR,
+Company info). Reproduced byte-identical in this session's own sandbox
+before touching anything, confirming these were real and deterministic,
+not environmental flakiness from any one sandbox. Every fix below is to a
+test/audit script, not product code — `git diff` for this work touches
+only `scripts/`, nothing under `src/`.
+
+**Root cause, all five suites**: none of this was a live product
+regression. Two earlier, already-documented redesigns left stale test
+code behind that nobody had run since:
+
+1. The three-panel layout (`LeadRows.tsx` / `ExtractionPanel` / a fixed
+   `RoutingPanel` column, plus a `.scan-settings` inline settings row) was
+   replaced by the single Results-sheet design (`LeadsSheet.tsx` +
+   `AuditTable.tsx`, settings moved into the `OptionsModal` popup) back
+   when build 017/018 shipped. `scripts/audit.mjs` and
+   `scripts/lib/browser-harness.mjs` (the shared real-browser test
+   harness) were never updated to match, so `audit.mjs` crashed outright
+   (`ENOENT` opening the long-gone `LeadRows.tsx`) and every browser suite
+   that opens the scan-mode dropdown via `setScanMode()` timed out looking
+   for `.scan-settings select`.
+2. This session's own PR #3 (OCR auto-continue) changed real, intended
+   behavior — a regular scan now finishes a flagged file's OCR pass
+   automatically — and `test-manual-ocr-browser.mjs` still encoded the old
+   "OCR only runs by hand" contract, so it failed correctly, against code
+   working as newly designed.
+
+**Fixes**:
+- `scripts/audit.mjs`: pointed its file reads at the real current
+  components (`LeadsSheet.tsx`, `AuditTable.tsx`), rewrote the "Approved
+  scanner UI" assertions to check the *current* approved design instead of
+  the superseded one (single-sheet layout instead of three panels, one
+  resize handle instead of two, the audit table's `useState(false)` toggle
+  instead of a `<details>` element, default page caps of 15/2 instead of
+  the old 9999/9999), and scoped the "no bulk-select checkbox" check to
+  just the row-rendering code so it doesn't false-positive on the
+  legitimate column-visibility checkbox that exists today. Also relaxed
+  one structural regex ("the engines are released when the queue goes
+  idle") that was over-fitted to exact brace placement PR #3's new
+  auto-continue code shifted — confirmed the actual invariant (workers
+  reset as the last statement of `runQueue`'s own `finally` block) still
+  holds before touching it. 140/140 now.
+- `scripts/lib/browser-harness.mjs`: `setScanMode`/`setRegularPages`/
+  `setOcrPages` now open the Options popup (`getByRole('button', {name:
+  /^options/i})` inside the "..." menu) and use `getByLabel(...)` against
+  the real current fields, instead of a `.scan-settings` selector that no
+  longer exists anywhere in the app. This one fix is what actually cleared
+  Offline browser (11/11) and Stop cancellation (11/11) — both suites'
+  only failures were this same timeout.
+- `scripts/test-manual-ocr-browser.mjs`: rewritten for the real, current
+  contract. Renamed (suite label in `test-all.mjs`: "OCR auto-continue
+  (real browser)") since "OCR only runs by hand" is no longer true by
+  design. Verifies the automatic follow-up pass actually reads a flagged
+  file (`usedOcr: true`, `needsOcr` cleared once OCR has run -- it's never
+  true at the same time as `usedOcr`, since the OCR code path never sets
+  it), leaves an already-readable file untouched, and that the manual "Run
+  OCR on flagged" control correctly disables once nothing is left needing
+  it. Deliberately does not force-click that control any more, since nothing
+  reaches that state after a normal scan now; its own requeue/flag-clearing
+  mechanics are still covered at the unit level in `test-recovery.mjs` and
+  structurally in `audit.mjs`. 10/10 now.
+- `scripts/test-company-info-browser.mjs`: rewritten to check the actual
+  current Results sheet instead of a `.paired-info` company/contact detail
+  panel that the three-panel layout removed. Verified real current
+  rendering first (a throwaway inspection script against the built app,
+  deleted after use, not guessed from reading component source) before
+  writing new assertions: the company/address cells' primary text is
+  always the application's own value, a `.differs-badge` next to it
+  carries what the statements say when it disagrees (name and DBA are
+  shown together in one badge, not as separate marked fields -- the old
+  panel's per-field "differs" flags don't exist in the grid design), and
+  owner/bank still come through. 12/12 now.
+
+**Full suite**: 514 passed, 0 failed, across all 15 suites, build clean.
+
+**Not done, per CLAUDE.md's own instruction**: don't add a GitHub Actions
+CI workflow (build + `test:suites` on every PR) until the suites are
+green -- they are now, so this is the next thing to propose to the user,
+not something to add unilaterally this session.

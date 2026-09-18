@@ -6,6 +6,12 @@
  * on from. Both have to reach the company record, and the difference has to be
  * visible. This drives the built app, offline, and reads what it actually
  * stored and rendered.
+ *
+ * The Results sheet (LeadsSheet.tsx) is the current, single source of truth
+ * for this -- there is no separate side panel any more (that three-panel
+ * design was replaced; see SESSION_LOG.md). The application's own value
+ * always sits as the cell's primary text; a difference from the statements
+ * is a small "⚠" badge next to it, never a swap.
  */
 
 import assert from 'node:assert/strict';
@@ -62,6 +68,7 @@ try {
 
   const statement = await scanner.waitForDocument('jan-statement.pdf', 120_000);
   await scanner.waitForDocument('USE_THIS_APP.pdf', 120_000);
+  await scanner.page.waitForTimeout(300); // let the Results sheet re-render after the last document settles
 
   await reporter.check('the statement carries the name the bank printed', async () => {
     assert.equal(statement.statementIdentity?.name, 'DATALAB INFOTECH INC');
@@ -83,101 +90,59 @@ try {
     assert.ok(!/Tampa|Wilmington|15284|25118/i.test(address), `stored the bank's address: ${address}`);
   });
 
-  // Everything below reads the rendered panel, not the stored record.
-  const panel = () =>
-    scanner.page.evaluate(() => {
-      const section = [...document.querySelectorAll('section')].find((node) =>
-        /on the bank statements/i.test(node.querySelector('h3')?.textContent ?? '')
-      );
-      if (!section) return null;
-      const rows = [...section.querySelectorAll('dl > div')].map((row) => ({
-        label: row.querySelector('dt')?.textContent ?? '',
-        value: row.querySelector('dd')?.textContent ?? ''
-      }));
-      return { rows, differs: [...section.querySelectorAll('.differs')].length };
-    });
+  // Everything below reads the rendered Results row, not the stored record.
+  const resultsCell = (index) =>
+    scanner.page.evaluate((i) => {
+      const row = document.querySelector('.leads-sheet .sheet-row:not(.sheet-head-row)');
+      const cell = row?.querySelectorAll('.sheet-cell')[i];
+      if (!cell) return null;
+      const differsValue = cell.querySelector('.differs-value')?.textContent ?? null;
+      const full = cell.textContent ?? '';
+      const primary = differsValue ? full.slice(0, full.indexOf('⚠')).trim() : full.trim();
+      return { primary, differsValue };
+    }, index);
 
-  const blockLabels = (heading) =>
-    scanner.page.evaluate((wanted) => {
-      const section = [...document.querySelectorAll('.paired-info section')].find(
-        (node) => (node.querySelector('h3')?.textContent ?? '').trim().toLowerCase() === wanted
-      );
-      return [...(section?.querySelectorAll('dt') ?? [])].map((node) => (node.textContent ?? '').trim());
-    }, heading);
+  // Column order (DEFAULT_ORDER in LeadsSheet.tsx): company, owner, revenue,
+  // approval, phone, email, address, appDate, statements, bank, bsd, mca, score.
+  // Cell 0 is the row number, so company is 1 and address is 7.
+  const COMPANY_CELL = 1;
+  const OWNER_CELL = 2;
+  const ADDRESS_CELL = 7;
+  const BANK_CELL = 10;
 
-  await reporter.check('the panel has a section for what the statements say', async () => {
-    assert.ok(await panel(), 'no "On the bank statements" section was rendered');
+  await reporter.check('a Results row was rendered for this company', async () => {
+    assert.ok(await resultsCell(COMPANY_CELL), 'no Results row was found');
   });
 
-  await reporter.check('the company block carries the application fields and nothing else', async () => {
-    assert.deepEqual(await blockLabels('company'), ['Legal name', 'DBA', 'EIN', 'DOB', 'Address']);
+  await reporter.check("the company cell's primary text is the application's own legal name", async () => {
+    const cell = await resultsCell(COMPANY_CELL);
+    assert.equal(cell.primary, 'Datalab Infotech Corporation');
   });
 
-  await reporter.check('the contact block carries the application fields and nothing else', async () => {
-    assert.deepEqual(await blockLabels('contact'), ['Owner', 'Mobile', 'Mobile 2', 'Mobile 3', 'Email']);
+  await reporter.check('the statement name and DBA are flagged as differing from the application', async () => {
+    const cell = await resultsCell(COMPANY_CELL);
+    assert.match(cell.differsValue ?? '', /DATALAB INFOTECH INC/);
+    assert.match(cell.differsValue ?? '', /Datalab Print Shop/);
   });
 
-  await reporter.check('nothing the statements say is mixed into the company block', async () => {
-    const shown = await scanner.page.evaluate(() => {
-      const section = [...document.querySelectorAll('.paired-info section')].find(
-        (node) => (node.querySelector('h3')?.textContent ?? '').trim().toLowerCase() === 'company'
-      );
-      return [...(section?.querySelectorAll('dd') ?? [])].map((node) => (node.textContent ?? '').trim());
-    });
-    assert.ok(!shown.some((text) => /DATALAB INFOTECH INC|RICHARDSON DR|Print Shop/.test(text)),
-      `the company block shows statement values: ${shown.join(' | ')}`);
+  await reporter.check("nothing the statement says replaces the application's own name", async () => {
+    const cell = await resultsCell(COMPANY_CELL);
+    assert.doesNotMatch(cell.primary, /DATALAB INFOTECH INC|Print Shop/);
   });
 
-  await reporter.check('the statement name is shown', async () => {
-    const { rows } = await panel();
-    assert.match(rows.find((row) => /^name/i.test(row.label))?.value ?? '', /DATALAB INFOTECH INC/);
+  await reporter.check("the address cell's primary text is the application's own address", async () => {
+    const cell = await resultsCell(ADDRESS_CELL);
+    assert.equal(cell.primary, '900 OLD MILL RD, PLANO, TX 75024');
   });
 
-  await reporter.check('the statement DBA is shown', async () => {
-    const { rows } = await panel();
-    assert.match(rows.find((row) => /dba/i.test(row.label))?.value ?? '', /Datalab Print Shop/);
+  await reporter.check('the statement address is flagged as differing from the application', async () => {
+    const cell = await resultsCell(ADDRESS_CELL);
+    assert.match(cell.differsValue ?? '', /1201 RICHARDSON DR STE 180, RICHARDSON, TX 75080-4610/);
   });
 
-  await reporter.check('the statement address is shown', async () => {
-    const { rows } = await panel();
-    assert.match(rows.find((row) => /address/i.test(row.label))?.value ?? '', /1201 RICHARDSON DR STE 180/);
-  });
-
-  await reporter.check('DBA and DOB are separate fields, both from the application', async () => {
-    const rows = await scanner.page.evaluate(() => {
-      const section = [...document.querySelectorAll('.paired-info section')].find(
-        (node) => (node.querySelector('h3')?.textContent ?? '').trim().toLowerCase() === 'company'
-      );
-      return [...(section?.querySelectorAll('dl > div') ?? [])].map((row) => ({
-        label: (row.querySelector('dt')?.textContent ?? '').trim(),
-        value: (row.querySelector('dd')?.textContent ?? '').trim()
-      }));
-    });
-    // DBA is the trading name; DOB is the owner's date of birth. Different
-    // fields that happen to look alike written short.
-    assert.equal(rows.find((row) => row.label === 'DBA')?.value, '—', 'this application prints no DBA');
-    assert.ok(rows.find((row) => row.label === 'DOB'), 'the date of birth is missing from the company block');
-  });
-
-  await reporter.check('the name and address that differ are marked, the DBA is not', async () => {
-    const { rows, differs } = await panel();
-    // The application carries no DBA, so the statement's is the only one there
-    // is — reported, but not a difference from anything.
-    assert.equal(differs, 2, `expected the name and the address to be marked, got ${differs}`);
-    assert.match(rows.find((row) => /^name/i.test(row.label))?.label ?? '', /differs/i);
-    assert.match(rows.find((row) => /address/i.test(row.label))?.label ?? '', /differs/i);
-    assert.doesNotMatch(rows.find((row) => /dba/i.test(row.label))?.label ?? '', /differs/i);
-  });
-
-  await reporter.check('the application fields are still shown beside them', async () => {
-    const shown = await scanner.page.evaluate(() => {
-      const section = [...document.querySelectorAll('.paired-info section')].find((node) =>
-        /^company$/i.test((node.querySelector('h3')?.textContent ?? '').trim())
-      );
-      return [...(section?.querySelectorAll('dd') ?? [])].map((node) => node.textContent);
-    });
-    assert.ok(shown.some((text) => /Datalab Infotech Corporation/.test(text ?? '')), 'the legal name is missing');
-    assert.ok(shown.some((text) => /900 OLD MILL RD/.test(text ?? '')), 'the application address is missing');
+  await reporter.check('the application owner and bank name are shown', async () => {
+    assert.equal((await resultsCell(OWNER_CELL)).primary, 'Dana Reed');
+    assert.equal((await resultsCell(BANK_CELL)).primary, 'Bank of America');
   });
 
   await reporter.check('nothing reached the network and no page error was raised', async () => {
