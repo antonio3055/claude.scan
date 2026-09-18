@@ -206,9 +206,8 @@ export async function launchScanner() {
       await page.waitForSelector('input[type=file]', { state: 'attached' });
     },
 
-    /** Open the Options popup, exactly as a user would (via the "..." menu). */
+    /** Open the Options popup, exactly as a user would (its own standalone toolbar button). */
     async openOptions() {
-      await page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
       await page.getByRole('button', { name: /^options…?$/i }).click();
       await page.waitForSelector('.scanner-modal-body');
     },
@@ -265,16 +264,14 @@ export async function launchScanner() {
       );
     },
 
-    /** Click Stop in the real menu, exactly as a user would. */
+    /** Click Stop, exactly as a user would (its own standalone icon button). */
     async clickStop() {
-      await page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
       await page.getByRole('button', { name: /stop scan/i }).click();
     },
 
-    /** Click "Run OCR on flagged" in the real menu, exactly as a user would. */
+    /** Click "Run OCR" on the toolbar's controls box, exactly as a user would. */
     async clickRunOcr() {
-      await page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
-      await page.getByRole('button', { name: /run ocr on flagged/i }).click();
+      await page.getByRole('button', { name: /^run ocr\b/i }).click();
     },
 
     async clickRestart() {

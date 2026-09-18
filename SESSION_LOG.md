@@ -641,3 +641,60 @@ errors, zero external network attempts, "Run OCR on flagged" completed the
 6 flagged files without error, and the new amber-bullet flag styling
 renders correctly on real flagged rows (e.g. "• Abbaspour INC (2 EVERFRESH
 MARKET INC.)").
+
+---
+
+## 2026-09-18 (continued) — Toolbar redesign: controls box mirrors the dropzone; Results header removed; OCR speed investigated (Scanner 05)
+
+**Top toolbar restructured** (`QueuePanel.tsx`/`scanner.css`), per request:
+title + "Ready"/status line + stats strip now sit in a flexible middle
+column, sandwiched between two fixed 200×168px boxes -- the upload
+dropzone on the left, and a new `.toolbar-controls` box on the right
+holding everything used every scan, all directly visible (no longer
+behind the "..." menu): Reg/OCR page limits, the cache chip, Play/Stop,
+a standalone **Run OCR** button (shortened from "Run OCR on flagged" to
+fit; the flagged count still shows as a badge), and a standalone
+**Options** button. The rarer actions (Restart stopped, Retry failed,
+Clear completed, OCR files, Send leads) stay in the "..." dropdown.
+`LeadsSheet.tsx`'s "Results" title/subtitle line was removed entirely,
+leaving just its filter/sort/columns/export toolbar.
+
+**Real regression caught and fixed by the test suite, not just eyeballed**:
+`browser-harness.mjs`'s `openOptions()` still force-opened the old "..."
+dropdown before clicking "Options" -- necessary back when Options lived
+inside that menu, but now that it's a standalone button directly below the
+menu in the compact controls box, force-opening the dropdown made its
+absolutely-positioned `.menu-card` overlap and block the Options/Run OCR
+buttons beneath it. Broke `setScanMode`/`setRegularPages`/`setOcrPages`/
+`setAutoContinueOcr` (all built on `openOptions()`), which surfaced as real
+failures in three suites (Offline browser, Stop cancellation, OCR) on the
+first `npm run test:suites` run after the redesign. Fixed by dropping the
+now-unnecessary force-open from `openOptions()` and `clickStop()` (Stop was
+never inside that menu either). Full suite confirmed clean after the fix --
+exactly the kind of regression CLAUDE.md's "run the real suite, don't just
+eyeball it" rule exists to catch.
+
+**OCR speed investigated, not changed.** User reported OCR as "very very
+slow." Read `offlineVendor.ts`/`scannerConfig.js`: the worker already
+requests `oem: 1` (LSTM-only) with a directory `corePath`, so
+`tesseract.js`'s own feature detection already auto-selects the fastest
+available WASM core (`tesseract-core-simd-lstm.wasm.js`) -- confirmed by
+reading `tesseract.js`'s `getCore.js` selection logic directly, not
+assumed. Lane count (`scanLaneCount`, up to `MAX_SCAN_LANES = 4`) is
+already tuned from a real prior benchmark documented right in
+`scannerConfig.js`'s own comment (8.8s at 4 lanes vs 10.0s at 3 -- already
+past the point of real diminishing returns). Nothing here is a bug to fix;
+in-browser Tesseract OCR is simply CPU-heavy, and this app is client-side
+by design (no server to offload it to). The one real remaining lever --
+lowering `renderPageToCanvas`'s render scale (currently 2x) before OCR --
+trades recognition accuracy on real statements (fine print, transaction
+tables) for speed, so it was not changed blind; flagged for a future
+session as something to A/B against real scanned statements (speed vs.
+accuracy) if the user wants that tradeoff explored, rather than guessed at.
+
+Verified: `tsc`, full 516-test suite, and build all clean; real-browser
+screenshots confirm the dropzone and controls box render as identically-
+sized 200×168 boxes, the Options button opens the modal correctly, and a
+full real run of the user's `scan15test.zip` (61/61 settled) through the
+new toolbar -- including clicking the new standalone Run OCR button for
+real -- renders cleanly with zero console/page errors.

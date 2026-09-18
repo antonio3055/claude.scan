@@ -82,49 +82,61 @@ export function QueuePanel(props: Props) {
         </button>
         <input ref={inputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.zip" hidden onChange={(e) => add(e.target.files)} />
 
-        <div className="toolbar-right">
+        <div className="toolbar-center">
           <div className="toolbar-title-row">
-            <div><h1>Forge Scanner</h1><span>{props.running ? (props.paused ? 'Paused' : ocrRunningCount ? `Running OCR (${ocrRunningCount}) -- this is the slow part` : 'Scanning') : queued ? `${queued} queued` : 'Ready'}</span></div>
-            <div className="head-actions">
-              <div className="page-limits" title="Pages read per file before the scan stops reading it">
-                <label>Reg
-                  <input
-                    type="number" min="1" max="9999" value={props.settings.regularPages}
-                    onChange={(e) => props.onSettings({ ...props.settings, regularPages: Math.max(1, Number(e.target.value) || 9999) })}
-                  />
-                </label>
-                <label>OCR
-                  <input
-                    type="number" min="1" max="9999" value={props.settings.ocrPages}
-                    onChange={(e) => props.onSettings({ ...props.settings, ocrPages: Math.max(1, Number(e.target.value) || 9999) })}
-                  />
-                </label>
-              </div>
-              <StoragePanel onClear={props.onClearStorage} epoch={props.storageEpoch} />
-              {props.running ? (
-                <button className="icon-control" type="button" onClick={props.paused ? props.onResume : props.onPause} title={props.paused ? 'Resume scan' : 'Pause scan'}>
-                  {props.paused ? <PlayIcon /> : <PauseIcon />}
-                </button>
-              ) : (
-                <button className="icon-control" type="button" onClick={props.onRun} title="Start queued scans"><PlayIcon /></button>
-              )}
-              <button className="icon-control" type="button" onClick={props.onStop} title="Stop scan"><StopIcon /></button>
-              <details className="more-menu">
-                <summary className="icon-control" title="More scanner options"><MoreIcon /></summary>
-                <div className="menu-card">
-                  <button type="button" onClick={props.onRestart}><RefreshIcon />Restart stopped <b>{rescanCount || ''}</b></button>
-                  <button type="button" onClick={props.onRetryFailed}><RefreshIcon />Retry failed <b>{props.documents.filter((d) => d.processingStatus === 'failed').length || ''}</b></button>
-                  <button type="button" onClick={props.onRunOcr} disabled={!needsOcrCount} title={needsOcrCount ? `${needsOcrCount} file(s) have no text layer and need OCR` : 'No file needs OCR'}><RefreshIcon />Run OCR on flagged <b>{needsOcrCount || ''}</b></button>
-                  <button type="button" onClick={props.onClearCompleted}>Clear completed</button>
-                  <div className="menu-divider" />
-                  <button type="button" onClick={props.onOpenOcrFiles}>OCR files <b>{usedOcrCount || ''}</b></button>
-                  <button type="button" onClick={props.onOpenSend}><SendIcon />Send leads <b>{props.readyToSend || ''}</b></button>
-                  <button type="button" onClick={props.onOpenOptions}>Options…</button>
-                </div>
-              </details>
-            </div>
+            <h1>Forge Scanner</h1>
+            <span>{props.running ? (props.paused ? 'Paused' : ocrRunningCount ? `Running OCR (${ocrRunningCount}) -- this is the slow part` : 'Scanning') : queued ? `${queued} queued` : 'Ready'}</span>
           </div>
           <StatsStrip documents={props.documents} leads={props.leads} elapsed={elapsed} />
+        </div>
+
+        <div className="toolbar-controls">
+          <div className="page-limits" title="Pages read per file before the scan stops reading it">
+            <label>Reg
+              <input
+                type="number" min="1" max="9999" value={props.settings.regularPages}
+                onChange={(e) => props.onSettings({ ...props.settings, regularPages: Math.max(1, Number(e.target.value) || 9999) })}
+              />
+            </label>
+            <label>OCR
+              <input
+                type="number" min="1" max="9999" value={props.settings.ocrPages}
+                onChange={(e) => props.onSettings({ ...props.settings, ocrPages: Math.max(1, Number(e.target.value) || 9999) })}
+              />
+            </label>
+          </div>
+          <StoragePanel onClear={props.onClearStorage} epoch={props.storageEpoch} />
+          <div className="toolbar-controls-row">
+            {props.running ? (
+              <button className="icon-control" type="button" onClick={props.paused ? props.onResume : props.onPause} title={props.paused ? 'Resume scan' : 'Pause scan'}>
+                {props.paused ? <PlayIcon /> : <PauseIcon />}
+              </button>
+            ) : (
+              <button className="icon-control" type="button" onClick={props.onRun} title="Start queued scans"><PlayIcon /></button>
+            )}
+            <button className="icon-control" type="button" onClick={props.onStop} title="Stop scan"><StopIcon /></button>
+            <details className="more-menu">
+              <summary className="icon-control" title="More scanner options"><MoreIcon /></summary>
+              <div className="menu-card">
+                <button type="button" onClick={props.onRestart}><RefreshIcon />Restart stopped <b>{rescanCount || ''}</b></button>
+                <button type="button" onClick={props.onRetryFailed}><RefreshIcon />Retry failed <b>{props.documents.filter((d) => d.processingStatus === 'failed').length || ''}</b></button>
+                <button type="button" onClick={props.onClearCompleted}>Clear completed</button>
+                <div className="menu-divider" />
+                <button type="button" onClick={props.onOpenOcrFiles}>OCR files <b>{usedOcrCount || ''}</b></button>
+                <button type="button" onClick={props.onOpenSend}><SendIcon />Send leads <b>{props.readyToSend || ''}</b></button>
+              </div>
+            </details>
+          </div>
+          <button
+            className="toolbar-action-btn"
+            type="button"
+            onClick={props.onRunOcr}
+            disabled={!needsOcrCount}
+            title={needsOcrCount ? `${needsOcrCount} file(s) have no text layer and need OCR` : 'No file needs OCR'}
+          >
+            <RefreshIcon />Run OCR <b>{needsOcrCount || ''}</b>
+          </button>
+          <button className="toolbar-action-btn" type="button" onClick={props.onOpenOptions}>Options…</button>
         </div>
       </div>
 
