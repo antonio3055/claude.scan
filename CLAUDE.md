@@ -33,6 +33,12 @@ sessions.
   until the user types the exact literal word `GO`.** Until then: inspect,
   explain, recommend only. This is a repeatedly-stated, non-negotiable
   rule from the project owner — see SESSION_LOG.md for the full context.
+- **Merge your own PRs once checks are green — don't ask.** The project
+  owner has said so repeatedly; a PR left open is work that never shipped,
+  and they end up chasing it. Two mechanics to know: this harness opens PRs
+  as **drafts**, and a draft can neither be merged nor have auto-merge
+  enabled — mark it ready for review first, then merge. And nothing merges
+  on its own; there is no ambient auto-merge, so if you leave it, it sits.
 - Before claiming something works, verify it — run the test suites
   (`npm run test:engine` etc.), `tsc --noEmit`, `npm run build`, and where
   UI behavior is in question, an actual headless-browser check (Playwright)
