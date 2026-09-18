@@ -43,7 +43,11 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   maxFileBytes: 40 * 1024 * 1024,
   duplicateHandling: 'flag',
   revenueExclusionThreshold: 0,
-  exporterInitials: ''
+  exporterInitials: '',
+  // OCR is by far the slowest stage, so it stays off by default -- a regular
+  // scan flags what needs it and leaves running it to "Run OCR on flagged",
+  // by hand, unless this is turned on in Options.
+  autoContinueOcr: false
 };
 
 const nowIso = () => new Date().toISOString();
@@ -309,10 +313,12 @@ export function useScannerQueue() {
 
   /**
    * `isOcrPass` marks a run started to read files the regular scan flagged.
-   * A regular scan automatically follows up with exactly one OCR pass on
-   * whatever it flagged; an OCR pass never triggers another one, so a file
-   * that fails OCR outright (still `needsOcr`, never `usedOcr`) cannot loop
-   * forever -- the next auto-continue only happens after a *regular* pass.
+   * When `autoContinueOcr` is on, a regular scan follows up with exactly one
+   * OCR pass on whatever it flagged; an OCR pass never triggers another one,
+   * so a file that fails OCR outright (still `needsOcr`, never `usedOcr`)
+   * cannot loop forever -- the next auto-continue only happens after a
+   * *regular* pass. Off by default: OCR is slow, so the flagged files just
+   * sit there until "Run OCR on flagged" is clicked by hand.
    */
   const runQueue = useCallback(async (isOcrPass = false) => {
     if (runningRef.current) return;
@@ -403,7 +409,7 @@ export function useScannerQueue() {
       await resetScannerWorkers();
     }
 
-    if (!isOcrPass && !stopRequestedRef.current) {
+    if (!isOcrPass && !stopRequestedRef.current && settingsRef.current.autoContinueOcr) {
       const candidates = ocrCandidateDocuments(docsRef.current) as ScannerDocument[];
       if (candidates.length) await runOcrOnFlagged();
     }

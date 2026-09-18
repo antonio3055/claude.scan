@@ -474,3 +474,47 @@ separate statements that coincidentally match to the cent (very unlikely) or
 a duplicate-detection gap worth a closer look with the actual source PDFs.
 Not fixed this session -- flagging here so a future session (or this one, if
 the user provides the real files) doesn't have to re-discover it.
+
+---
+
+## 2026-09-18 (continued) — OCR auto-continue turned off by default; toolbar shows OCR status + page limits (Scanner 05)
+
+User reported OCR is "very very slow" and wanted to stop it running on its
+own, be told when it's actually running, and have Regular/OCR page-limit
+numbers reachable without opening Options.
+
+**Auto-continue OCR is now off by default.** The Scanner 04 change that made
+a regular scan automatically follow up with one OCR pass on whatever it
+flagged is now opt-in: new `autoContinueOcr` field on `ScanSettings`
+(`types/scanner.ts`), defaulting to `false`, gates the auto-continue call in
+`useScannerQueue.ts`'s `runQueue`. Off (the new default): a scanned file
+just sits flagged `needsOcr` until "Run OCR on flagged" is clicked by hand,
+same as the original pre-Scanner-04 behaviour. On (a new "Auto-run OCR
+after scan" select in `OptionsModal.tsx`): restores the automatic follow-up
+exactly as it worked before this change.
+
+**Toolbar now says when OCR is actually running**: the status line next to
+"Forge Scanner" (`QueuePanel.tsx`) shows "Running OCR (N) -- this is the
+slow part" instead of a generic "Scanning" whenever any document is
+mid-OCR, so it's obvious when to expect things to slow down.
+
+**Regular/OCR page-limit numbers moved onto the main toolbar** as a compact
+`Reg [ ] OCR [ ]` control (`.page-limits`, next to the storage chip) bound
+to the same settings as the Options modal fields -- editable from either
+place, no need to open Options just to change a page cap.
+
+**Test suite updated to match the new default contract, not just left
+passing by accident**: `test-manual-ocr-browser.mjs` (still labelled "OCR
+auto-continue (real browser)" in `test-all.mjs`) now checks both halves --
+by default a scanned file is flagged and left unread until the manual "Run
+OCR on flagged" button reads it, and with `autoContinueOcr` turned on (a new
+`setAutoContinueOcr()` helper in `browser-harness.mjs`, driving the real
+Options select) the old automatic-follow-up behaviour is confirmed to still
+work. `scripts/audit.mjs`'s existing OCR-related assertions
+(`regularPages: 15`, `ocrPages: 2`, `mode: 'regular'`, etc.) were unaffected
+since none of them touch the new field.
+
+Verified: full 516-test suite (514 + 2 new checks) and `npm run build` both
+clean, plus a real-browser Playwright screenshot confirming the "Running OCR
+(1) -- this is the slow part" status text renders correctly mid-run and the
+toolbar Reg/OCR inputs actually update stored settings when changed.
