@@ -25,6 +25,8 @@ export interface ScanSettings {
    * than scanned. 0 disables the check.
    */
   revenueExclusionThreshold: number;
+  /** Whoever is exporting right now, e.g. "MM" -- goes at the front of the XLSX filename so it's clear at a glance who ran/sent it. */
+  exporterInitials: string;
 }
 
 export interface StageLogEntry {

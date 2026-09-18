@@ -42,7 +42,8 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   maxFiles: 500,
   maxFileBytes: 40 * 1024 * 1024,
   duplicateHandling: 'flag',
-  revenueExclusionThreshold: 0
+  revenueExclusionThreshold: 0,
+  exporterInitials: ''
 };
 
 const nowIso = () => new Date().toISOString();

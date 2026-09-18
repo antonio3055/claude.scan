@@ -20,6 +20,23 @@ function statusRank(status: ScanStatus) {
   )[status] ?? 0;
 }
 
+/**
+ * A company's own bank statements are the actual financial evidence; the
+ * application is contact/identity paperwork. Averaging every document's
+ * score flat let a fully filled-out application with zero matched
+ * statements read as a "100% complete" lead -- no financial data verified
+ * at all, scored the same as one with three clean, reconciling statements.
+ * Statements dominate the score, and an application alone (no statements
+ * matched to it) is capped low regardless of how complete the form itself is.
+ */
+function leadScore(application: ScannerDocument | undefined, statementDocs: ScannerDocument[]) {
+  const applicationScore = application ? extractionScore(application) : null;
+  if (!statementDocs.length) return applicationScore == null ? 0 : Math.round(applicationScore * 0.3);
+  const statementScore = statementDocs.reduce((sum, doc) => sum + extractionScore(doc), 0) / statementDocs.length;
+  if (applicationScore == null) return Math.round(statementScore * 0.85);
+  return Math.round(statementScore * 0.7 + applicationScore * 0.3);
+}
+
 export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
   // Keep the source engine's company grouping available, but avoid collapsing every
   // truly-unassociated document into one fake company. Unknown docs stay separate.
@@ -43,7 +60,7 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
     const statementRevenue = statements.map(getDocumentRevenue).filter((n) => n > 0);
     const revenue = application?.application?.statedRevenue
       ?? (statementRevenue.length ? statementRevenue.reduce((a, b) => a + b, 0) / statementRevenue.length : 0);
-    const extraction = Math.round(docs.reduce((sum, doc) => sum + extractionScore(doc), 0) / Math.max(1, docs.length));
+    const extraction = leadScore(application, unique.filter((d) => d.docType === 'bank_statement'));
     const status = docs.slice().sort((a, b) => statusRank(b.processingStatus) - statusRank(a.processingStatus))[0]?.processingStatus ?? 'queued';
     const issues = docs.flatMap((d) => (d.reviewItems ?? []).map((item) => String((item as any).type ?? 'review')));
     const ownerName = application?.application?.fullName ?? null;
