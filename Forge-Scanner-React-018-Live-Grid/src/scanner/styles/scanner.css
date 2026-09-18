@@ -137,6 +137,7 @@
 .leads-sheet-resize-handle:hover::after, .leads-sheet-resize-handle:active::after { background: var(--accent); }
 .leads-sheet { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .leads-sheet-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.unmatched-warning { flex: 0 0 auto; padding: 7px 16px; background: var(--warn-soft); color: var(--warn); font-size: 11px; font-weight: 650; border-bottom: 1px solid var(--line); }
 .leads-sheet-head h2 { margin: 0; font-size: 15px; font-weight: 800; color: var(--text); }
 .leads-sheet-head > div:first-child span { display: block; margin-top: 1px; color: var(--muted); font-size: 11px; }
 .leads-sheet-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

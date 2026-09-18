@@ -103,3 +103,61 @@ recreate them). This is now the one true home for the scanner.
 Added this file and `CLAUDE.md` at the end of this session specifically
 so a fresh chat can pick up this context without needing to be pasted a
 manual recap every time.
+
+---
+
+## 2026-09-18 — Live-deploy verification against real data (Scanner 03)
+
+Tested the actual `forge-scanner-one.vercel.app` deployment end-to-end with
+Playwright against the user's real `scan15test.zip` batch (61 PDFs, 13
+companies) — not code reading, not unit tests, the deployed site itself.
+Test artifacts (extracted PDFs, screenshots, XLSX export, the uploaded zip)
+were deleted after the session; none of it is checked in or left on disk.
+
+**Score-weighting fix from the previous session is confirmed working in
+production**: zero-statement leads correctly cap at 30% of the
+application's completeness, fully-matched leads score up to 100, nothing
+is clustered artificially the way it was before that fix.
+
+**Root cause of the old "audit shows no OCR used" report, finally
+explained**: OCR is intentionally manual, not automatic (see the comment
+in `useScannerQueue.ts` — "OCR never starts on its own"). A user has to
+click **Run OCR on flagged N** in the "..." menu after the first pass.
+Before that click, a scanned document sits flagged `needsOcr` but unread —
+its lead looks like a zero-statement, app-only lead (low score, app
+revenue only), which is exactly what the user saw and what the prior
+session couldn't reproduce (it wasn't stale deployment, it's a
+workflow/discoverability gap, not a code defect — not changed this
+session, flagging here in case it's worth a UI nudge later).
+
+**One real, separate bug found and fixed**: `Results` and the XLSX export
+both intentionally hide any lead whose `companyName` is `'Unassociated'`
+(a document the engine couldn't read or match to a company) — by design,
+"exports exactly what the Results sheet shows" — but there was no
+indication to the user that this had happened. A document could fail (e.g.
+a one-off Tesseract worker load failure during OCR) and its revenue would
+just silently vanish from both the screen and the spreadsheet. Fixed by
+wiring up `auditSummary()` in `lib/leads.ts` (already existed, was never
+called anywhere) into a warning banner in `LeadsSheet.tsx`: "N document(s)
+could not be matched to a company — excluded from Results and the export
+... Check Scan Audit." Verified against a synthetic blank PDF in a local
+`vite preview` build (real browser, not just `tsc`/unit tests) — confirmed
+it renders correctly. Full regression suite + build still clean.
+
+**Investigated and ruled out as not-a-bug**: initially suspected the
+"Run OCR on flagged" path skips the queue's automatic retry-once logic
+(one Abbaspour statement failed on `tesseract-core-simd-lstm.wasm.js`
+during live testing and didn't visibly retry). Read `jobRunner.js` and
+confirmed `runOcrOnFlagged` reuses the exact same `runScanQueue` /
+`runJobWithRetry` path as every other scan trigger — retry is generic, not
+special-cased per entry point. Also confirmed the wasm asset itself is
+present and served correctly (200, correct size) both locally and on the
+live deployment. Most likely a one-off network hiccup in the sandboxed
+test environment's TLS-intercepting proxy, not a reproducible production
+defect. No code change made here — don't re-"fix" this without new
+evidence it's real.
+
+**Vercel cleanup (6 leftover projects)**: still open, not done this
+session — deleting a Vercel project isn't exposed through this session's
+available tools (only pause/unpause), so it needs the user to do it (or a
+session with fuller Vercel access).

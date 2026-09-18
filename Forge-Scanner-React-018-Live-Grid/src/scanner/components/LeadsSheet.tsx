@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import type { ScannerLead } from '../types/scanner';
 import { displayList, displayValue, money, shortDocLabel } from '../lib/format';
 import { potentialApproval, roundDisplayAmount } from '../lib/displayRules';
+import { auditSummary } from '../lib/leads';
 import { useResizableColumns } from '../hooks/useResizableColumns';
 import { useColumnOrder } from '../hooks/useColumnOrder';
 
@@ -115,6 +116,7 @@ export function LeadsSheet({ leads, onExport }: Props) {
     return rows;
   }, [leads, query, statusFilter, sortMode]);
 
+  const missingCompany = useMemo(() => auditSummary(leads).missingCompany, [leads]);
   const activeColumns = reorder.order.filter((key) => !hidden.has(key));
   // Every column track gets its own fixed pixel size, so widening one only
   // pushes the ones after it along the row -- it never changes what any
@@ -141,6 +143,13 @@ export function LeadsSheet({ leads, onExport }: Props) {
           <button type="button" className="primary-btn" onClick={onExport}>Export XLSX</button>
         </div>
       </header>
+
+      {missingCompany > 0 && (
+        <div className="unmatched-warning">
+          ⚠ {missingCompany} document{missingCompany === 1 ? '' : 's'} could not be matched to a company —
+          excluded from Results and the export, and its revenue is not counted above. Check Scan Audit for which file and why.
+        </div>
+      )}
 
       {showColumns && (
         <div className="columns-popover">
