@@ -58,14 +58,17 @@ export function StoragePanel({ onClear, epoch }: { onClear: () => void; epoch: n
   };
 
   return (
-    <footer className="storage-panel">
-      <span className="storage-label">Storage</span>
-      <span className="storage-value">
-        {supported ? (bytes == null ? 'Checking…' : formatBytes(bytes)) : 'Not available in this browser'}
+    <div className="storage-panel">
+      <span className="storage-label">Cache</span>
+      <span
+        className="storage-value"
+        title="Real usage reported by the browser's own Storage API, not a guess. A few KB can remain for a moment after clearing -- the browser reclaims IndexedDB space in the background, not instantly; the documents themselves are gone right away."
+      >
+        {supported ? (bytes == null ? 'Checking…' : formatBytes(bytes)) : 'n/a'}
       </span>
-      <button type="button" onClick={handleClear} disabled={clearing}>
+      <button type="button" onClick={handleClear} disabled={clearing} title="Wipe every cached document and original file">
         {clearing ? 'Clearing…' : 'Clear cache'}
       </button>
-    </footer>
+    </div>
   );
 }
