@@ -1,0 +1,196 @@
+Forge Scanner React 005 — Offline Verified — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+BUILD
+================================================================
+  npm install                      OK   147 packages
+  npm run build                    OK   tsc --noEmit clean, vite build clean
+    dist/index.html                     0.45 kB   (gzip 0.29 kB)
+    dist/assets/index-ayvPbSGB.css     14.19 kB   (gzip 3.34 kB)
+    dist/assets/index-BplmHBMU.js     323.35 kB   (gzip 101.05 kB)
+    dist/scanner-vendor/                9 local PDF.js + Tesseract assets, 29 MB
+
+  npm ci --cache ./npm-cache --offline   OK   147 packages, no network
+
+================================================================
+TESTS — 232 passed, 0 failed, 10 suites, each in its own process
+================================================================
+  Clean-code audit                              86 passed   0 failed
+  Extraction engine (v10)                       45 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  11 passed   0 failed
+  Queue isolation                                4 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+
+================================================================
+FINAL VERIFICATION — two consecutive passes, nothing changed between
+================================================================
+  Pass 1   232 passed, 0 failed
+  Pass 2   232 passed, 0 failed
+  dist/ SHA-256 (identical in both passes):
+    613c9dfe93d92640353b3906552ca5a382a3dd8a44b7cabf785845f8fb7c2fb3
+
+================================================================
+REAL OFFLINE BROWSER RUN
+================================================================
+  Headless Chromium, browser context set offline, every request served from
+  dist/ on disk. No server started. No network request made.
+
+  Remote origins attempted          0
+  Missing local assets              0
+  Page errors / console errors      0
+  Real PDF parsed offline           yes, local pdf.min.js + pdf.worker.min.js only
+  Real image OCRed offline          yes, local tesseract.min.js + worker.min.js
+                                    + WASM core + eng.traineddata.gz only
+  OCR read back through the engine  account number 1234567890,
+                                    beginning 12500, deposits 48250, ending 39710
+  All 9 vendor assets present in dist/ and non-empty   verified
+
+================================================================
+REAL STOP TEST (in the browser, clicking the real Stop button)
+================================================================
+  An 8-page PDF was scanned in OCR mode. Stop was clicked while the document
+  was genuinely in an extracting/OCR stage with a live Web Worker.
+
+  Workers created                   3
+  Workers terminated                3
+  Workers still live at the end     0
+  Active job cancelled              yes, marked `stopped`, error `scan_stopped`
+  Reached extraction/OCR completion no  (cancelled before finishing)
+  Worker teardown after Stop        completed within 5 s (measured at ~0.5 s)
+  Stopped file kept changing after  no  (unchanged over a 4 s watch)
+  Next job after Stop               completed on attempt 1, account 9988776655,
+                                    deposits 61000 extracted
+  Restart of the stopped file       completed, 8 pages
+  Remote origins attempted          0
+
+================================================================
+REAL QUEUE FAILURE TEST (good / bad / good, in the browser)
+================================================================
+  1-good-before.pdf     needs_review   account 1111111111, deposits 40000
+  2-corrupted.pdf       failed         corrupted_pdf, 2 attempts (retried once)
+  3-good-middle.pdf     needs_review   account 2222222222, deposits 50000
+  4-truncated.pdf       failed         corrupted_pdf, structure warnings recorded
+  5-not-a-pdf.pdf       failed         not_a_real_pdf_signature, 1 attempt (terminal)
+  6-good-after.pdf      needs_review   account 3333333333, deposits 60000
+
+  Exactly the 3 bad files failed. No good file failed. The queue drained and
+  returned to idle with 0 live workers, 0 page errors, 0 remote origins.
+
+================================================================
+REAL DOCUMENT BATCH — scan15test.zip
+================================================================
+NOTE ON SIZE: the request named a 119-file batch. The archive supplied for this
+session, `scan15test.zip`, contains 61 PDFs in 14 company folders (24 MB). All
+61 were run. Nothing was padded, corrected or filled in to reach 119.
+
+REGULAR MODE (the default: 3 pages, OCR off)
+  Files on disk                     61
+  Accepted into the queue           61
+  Scanned (reached a final state)   61
+  Completed                          1
+  Needs review                      60
+  Failed                             0
+  Stopped                            0
+  Timeouts                           0
+  Retried once                       0
+  Used OCR                           0
+  Leads built                       61
+  Average extraction score          57%  (over 61 scored leads)
+  Total runtime                     33.9 s
+  Remote origins attempted           0
+  Page errors                        0
+  Failed files                      none
+
+OCR MODE (same 61 files, for comparison)
+  Scanned                           61
+  Completed                          4
+  Needs review                      57
+  Failed                             0
+  Timeouts                           0
+  Used OCR                          61
+  Average extraction score          51.7%  (over 45 scored leads)
+  Total runtime                     228.0 s
+  Remote origins attempted           0
+  Failed files                      none
+
+EXTRACTION COVERAGE, side by side (out of 61)
+  field                 regular    ocr
+  text layer trusted         34     40
+  documents with no text      6      0
+  bank recognised            42     45
+  account number             55     47
+  deposit total              34     44
+  revenue                    38     44
+  company name                0      0
+
+WHAT THE BATCH SHOWS — reported, not fixed
+  The reliability work holds up on real documents: 61/61 files reached a final
+  state, zero failures, zero timeouts, zero stalls, zero network access, in
+  both modes.
+
+  Extraction quality has three gaps that are NOT reliability defects and were
+  NOT in the approved fix list for this build, so the v10 engine was left
+  untouched:
+
+  1. Company name is extracted for 0 of 61 documents. Because leads are grouped
+     by company, this produces 61 separate leads instead of the 14 companies in
+     the folder structure.
+
+  2. All 61 documents are classified as `bank_statement`, including the 13
+     files named `..._USE_THIS_APP.pdf`. Those files do carry a text layer
+     (~1000 characters each); the classifier reports `no_statement_signal` and
+     still falls back to `bank_statement` rather than `application`.
+
+  3. Six documents have no text layer at all in regular mode (0 characters).
+     OCR mode recovers all six, and lifts deposit extraction from 34 to 44 and
+     revenue from 38 to 44 — at 6.7x the runtime, and at the cost of some
+     account numbers (55 down to 47) where OCR misreads digits.
+
+  Say the word and these become the fix list for 006.
+
+================================================================
+DEFECTS FOUND IN 004 AND FIXED HERE
+================================================================
+  1. The whole-file timeout did not exist. `SCAN_TIMEOUTS.jobMs` was declared
+     and referenced nowhere. A file could be stuck indefinitely as long as each
+     individual stage stayed inside its own smaller limit.
+     Fixed: every attempt now runs under the watchdog at jobMs, on its own
+     cancellation token, so the ceiling tears down whatever stage is running —
+     including a stage that ignores cancellation entirely.
+
+  2. A dead vendor load was cached forever. `pdfPromise.catch(...)` cleared the
+     cached loader only on rejection. A script tag that fires neither `load` nor
+     `error` leaves the promise pending, so the retry and every later file
+     awaited a promise that could never settle.
+     Fixed: one loader slot per library; a load that rejects, times out or is
+     cancelled clears the slot and runs its cleanup, and the next attempt starts
+     a fresh load.
+
+  3. The delivered ZIP did not contain the offline dependencies its README
+     described. It was 135 KB of source with no npm cache and no vendor assets.
+     Fixed: the package now carries the cache, the vendor assets and the built
+     dist/, and `scripts/package-release.mjs` refuses to build the ZIP if any
+     of them is missing or empty.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - The other 58 files of the 119-file batch. They were not supplied to this
+    session; only scan15test.zip (61 files) was available.
+  - Real CRM lead sending. It requires the host CRM `onSendLeads` callback and
+    is not simulated.
+  - Freeform routing beyond the built-in deterministic patterns. It requires
+    the optional host CRM `routingInterpreter` callback.
+  - Electron packaging itself. The renderer module is prepared for it (relative
+    asset base, local vendor assets, no Node usage in the renderer), but no
+    Electron shell was built or run here.
+  - A `file://` origin. Chromium blocks Web Workers on `file://`, so the browser
+    suites serve dist/ over a local app origin (http://scanner.localhost) that
+    stands in for Electron's local app protocol. No server runs and no network
+    request is made.

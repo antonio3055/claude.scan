@@ -1,0 +1,49 @@
+{
+  "name": "forge-scanner-react",
+  "private": true,
+  "version": "0.14.0",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/copy-scanner-vendor.mjs",
+    "vendor": "node scripts/copy-scanner-vendor.mjs",
+    "dev": "node scripts/copy-scanner-vendor.mjs && vite --port=3000 --host=0.0.0.0",
+    "build": "node scripts/copy-scanner-vendor.mjs && tsc --noEmit && vite build",
+    "preview": "vite preview --host=0.0.0.0",
+    "audit": "node scripts/audit.mjs",
+    "test": "npm run build && node scripts/test-all.mjs",
+    "test:engine": "node scripts/test-engine.mjs",
+    "test:queue": "node scripts/test-queue.mjs",
+    "test:jobrunner": "node scripts/test-jobrunner.mjs",
+    "test:validation": "node scripts/test-validation.mjs",
+    "test:recovery": "node scripts/test-recovery.mjs",
+    "test:offline": "node scripts/test-offline-browser.mjs",
+    "test:suites": "node scripts/test-all.mjs",
+    "test:vendorloader": "node scripts/test-vendorloader.mjs",
+    "test:stop": "node scripts/test-stop-browser.mjs",
+    "test:queue-browser": "node scripts/test-queue-browser.mjs",
+    "batch": "node scripts/run-batch.mjs",
+    "package": "node scripts/package-release.mjs",
+    "fixtures": "node scripts/write-fixtures.mjs",
+    "test:extraction": "node scripts/test-extraction.mjs",
+    "test:transactions": "node scripts/test-transactions.mjs",
+    "test:balance": "node scripts/test-balance.mjs",
+    "test:manual-ocr": "node scripts/test-manual-ocr-browser.mjs",
+    "test:company-info": "node scripts/test-company-info-browser.mjs"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
+    "pdfjs-dist": "3.11.174",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "tesseract.js": "5.1.1",
+    "tesseract.js-core": "5.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "playwright": "^1.56.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3"
+  }
+}

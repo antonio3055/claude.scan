@@ -1,0 +1,153 @@
+Forge Scanner React 007 — Parsing Fixed — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+BUILD
+================================================================
+  npm install                            OK   147 packages
+  npm run build                          OK   tsc --noEmit clean, vite build clean
+    dist/assets/index-D4_1kKWH.js
+  npm ci --cache ./npm-cache --offline   OK   147 packages, no network
+
+================================================================
+TESTS — 322 passed, 0 failed, 12 suites, each in its own process
+================================================================
+  Clean-code audit                             114 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    40 passed   0 failed
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  11 passed   0 failed
+  Queue isolation                                4 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+
+FINAL VERIFICATION — two consecutive passes, nothing changed between
+  Pass 1   322 passed, 0 failed
+  Pass 2   322 passed, 0 failed
+  dist/ SHA-256 (identical in both passes):
+    d02f7957df46c1c173c413363cd0ec1861ac1eaebd68c53b4db694db461d1a2c
+
+================================================================
+REAL DOCUMENT BATCH — the same 61 files, 006 vs 007
+================================================================
+  metric                            006      007
+  files scanned                      61       61
+  failed                              0        0
+  timeouts                            0        0
+  runtime                         31.5s    61.6s   (OCR now runs on 6 files)
+
+  documents with no readable text     5        0
+  used OCR                            0        6   (automatic fallback)
+  text layer trusted                 39       43
+  leads built                        21       17   (14 companies in the folders)
+  average extraction score        55.1%    63.6%
+  completed (not needing review)      1        1
+
+  reason counts                     006      007
+  high_unparsed_line_ratio           21        2
+  reconciliation_mismatch            30        4
+  reconciliation_not_possible        13       43   (see truncation, below)
+
+  Measured on individual statements, parsed money-in now equals the bank's own
+  deposit total exactly:
+    ACS Maintenance (DFCU)   parsed credits 11,085.35   statement 11,085.35   delta 0.00
+    4Bs Entertainment        parsed credits 29,724.58   statement 29,724.58   delta 0.00
+    A-1 Services (Old Nat.)  parsed credits 32,268.60   statement 32,268.60   delta 0.00
+  Transactions needing review inside those statements went from 15%, 66% and
+  17% to 0%, and two statements that produced ZERO transactions now produce
+  90 and 120.
+
+================================================================
+WHAT WAS FIXED
+================================================================
+  1. Two of every five statements produced no transactions at all.
+     The parser only accepted MM/DD dates at the start of a line. Real
+     statements use 01-22-2026, and some print the description first with the
+     date beside the amount ("Deposit 650825261202 01-02 1,280.00"). Both
+     layouts are now read.
+
+  2. Direction was guessed from keywords, so up to two thirds of transactions
+     were left "needs review".
+     Statements group their transactions under headings — DEPOSITS AND OTHER
+     CREDITS, WITHDRAWALS AND OTHER DEBITS — and that heading is far stronger
+     evidence than any word in the description. Direction is now decided by,
+     in order: an explicit minus sign, a DR/CR tag, the section, then keywords.
+     Every transaction records which of those decided it.
+
+  3. Prose was being read as a section heading.
+     "For ATM and Debit Card withdrawals, use the transaction date" is an
+     instruction to the reader, and it was flipping the parser into the debits
+     section mid-page. Headings are now anchored to the start of the line and
+     capped at 60 characters.
+
+  4. Daily-balance tables were becoming phantom transactions.
+     "01-02 -432.99 01-14 -20.36 01-23 -160.00" is a balance table, not three
+     transactions. Summary tables are now skipped by name.
+
+  5. Cheques listed twice were counted twice.
+     Some statements print their cheque table in two different layouts. The
+     cheque number now identifies the repeat.
+
+  6. A partly read statement was reported as a reconciliation mismatch.
+     The default scan reads 3 pages; the summary totals on page 1 cover the
+     whole month. Comparing them said nothing about the document. A truncated
+     statement now reports "statement_truncated" instead of a false mismatch.
+
+  7. Scanned PDFs with no text layer produced nothing.
+     A PDF whose text layer yields under 50 meaningful characters is an image.
+     That one file now falls back to OCR automatically. The regular-scan
+     default is unchanged for every file that does have text.
+
+  8. One business was split across two leads by spelling.
+     The statements print "1950 ORIGINALS LLC" and the application prints
+     "1950'S Original". The company key now ignores possessives and plurals.
+
+================================================================
+NOT FIXED — measured, reported, and left alone
+================================================================
+  RECONCILIATION STILL FAILS ON MOST STATEMENTS.
+
+  Money-in is now exact. Money-out is not. Measured against the banks' own
+  totals on three statements:
+    ACS Maintenance   parsed debits 28,724.06   statement 25,330.76   +3,393.30
+    4Bs Entertainment parsed debits 33,314.77   statement 27,033.39   +6,281.38
+    A-1 Services      parsed debits 23,227.52   statement 31,764.93   -8,537.41
+
+  The cause is per-bank table layout on the debit side: cheque tables printed
+  two cheques per row, the same cheque table printed twice in different
+  formats, and debit categories split across several headings that the summary
+  totals combine differently. I built a cheque-table reader for one of these
+  layouts, measured it, found it made the numbers worse on a second bank, and
+  removed it rather than ship something tuned to one statement.
+
+  Doing this properly means per-bank column layouts, which is a different and
+  larger piece of work than this one.
+
+  PAGE LIMIT. The approved default reads 3 pages, and 43 of 48 statements are
+  longer than that, so reconciliation cannot even be attempted on them. Raising
+  "Regular pages" in Scan Settings to 50 was measured on the same batch:
+    completed            1 -> 8
+    needs review        60 -> 53
+    truncated           43 -> 6
+    runtime          61.6s -> 68.2s
+  The default was NOT changed, because "regular scan default: 3 pages" is an
+  approved rule. It is one field in Scan Settings if you want it.
+
+  60 of 61 documents therefore still read "needs review". That is honest: the
+  scanner is telling you it could not verify the arithmetic, and on the debit
+  side it genuinely could not.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - The other 58 files of the 119-file batch; only the 61 supplied were run.
+  - Real CRM lead sending and freeform routing; both need host CRM callbacks.
+  - Electron packaging itself.
+  - The Cloudflare "Workers Builds" check remains red. The repository has no
+    Worker entrypoint or wrangler config, so it fails on every commit
+    including the base branch. It is not caused by the scanner, and adding a
+    Worker would publish this app publicly, which needs your decision.

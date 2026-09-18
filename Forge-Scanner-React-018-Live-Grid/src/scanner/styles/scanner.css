@@ -1,0 +1,289 @@
+.forge-scanner {
+  --bg: #f2f5fb;
+  --surface: #ffffff;
+  --surface-soft: #eef2fb;
+  --line: #dde3ee;
+  --line-strong: #c4cee1;
+  --text: #1a2233;
+  --muted: #5c6a85;
+  --dim: #8b96ad;
+  --accent: #2f5fd0;
+  --accent-strong: #1e46a8;
+  --accent-soft: #e7edfc;
+  --accent-soft-strong: #d7e2fa;
+  --good: #12805e;
+  --good-soft: #e5f5ef;
+  --warn: #ad6c07;
+  --warn-soft: #fbf0dd;
+  --bad: #c23c3c;
+  --bad-soft: #fbe8e8;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  color: var(--text);
+  background: var(--bg);
+  padding: 8px;
+  font-size: 13px;
+}
+
+.scanner-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.scanner-panel-head {
+  min-height: 52px;
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.scanner-panel-head > div:first-child { min-width: 0; }
+.scanner-panel-head h2 { margin: 0; font-size: 15px; line-height: 1.1; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scanner-panel-head span { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.1; }
+.head-actions { display: flex; align-items: center; gap: 6px; }
+
+/* ---------- Top toolbar (upload + run controls + stats) ---------- */
+/* overflow is intentionally NOT hidden here: the "..." options dropdown is an
+   absolutely-positioned popover that needs to render outside this box. */
+.scanner-toolbar { flex: 0 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.toolbar-top { display: flex; align-items: stretch; gap: 12px; padding: 10px; }
+
+/* 40% real drag-and-drop target: click anywhere inside opens the file picker too. */
+.upload-dropzone {
+  flex: 0 0 40%; min-width: 260px; border: 2px dashed var(--accent); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--accent-soft); color: var(--accent-strong); cursor: pointer; text-align: left; padding: 0 16px;
+}
+.upload-dropzone:hover, .upload-dropzone.drag { background: var(--accent-soft-strong); border-color: var(--accent-strong); }
+.upload-dropzone svg { width: 26px; height: 26px; flex: 0 0 26px; }
+.upload-dropzone b { display: block; font-size: 13px; font-weight: 800; }
+.upload-dropzone small { display: block; margin-top: 2px; font-weight: 500; opacity: 0.85; font-size: 11px; }
+
+.toolbar-right { flex: 1 1 60%; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
+.toolbar-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.toolbar-title-row h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -.01em; color: var(--accent-strong); }
+.toolbar-title-row span { display: block; margin-top: 1px; color: var(--muted); font-size: 11px; }
+
+.icon-control {
+  width: 30px; height: 30px; border: 0; border-radius: 8px; display: grid; place-items: center;
+  background: transparent; color: var(--muted); cursor: pointer; list-style: none;
+}
+.icon-control::-webkit-details-marker { display: none; }
+.icon-control:hover { color: var(--accent-strong); background: var(--accent-soft); }
+.icon-control svg { width: 15px; height: 15px; }
+
+.more-menu { position: relative; }
+.more-menu > summary { list-style: none; }
+.more-menu > summary::-webkit-details-marker { display: none; }
+.menu-card {
+  position: absolute; z-index: 50; top: 36px; right: 0; width: 240px; padding: 6px;
+  border: 1px solid var(--line-strong); border-radius: 10px; background: #fff;
+  box-shadow: 0 12px 32px rgba(30, 46, 90, 0.16);
+}
+.menu-card > button {
+  width: 100%; min-height: 32px; border: 0; border-radius: 7px; display: flex; align-items: center;
+  gap: 8px; padding: 0 9px; background: transparent; text-align: left; cursor: pointer; font-size: 12px; color: var(--text);
+}
+.menu-card > button:hover { background: var(--accent-soft); color: var(--accent-strong); }
+.menu-card > button svg { width: 14px; height: 14px; }
+.menu-card > button b { margin-left: auto; font-size: 10px; color: var(--muted); }
+.menu-card > button:disabled { opacity: 0.5; cursor: default; }
+.menu-divider { height: 1px; margin: 5px 4px; background: var(--line); }
+
+.upload-notices { list-style: none; margin: 0; padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 4px; }
+.upload-notices li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 9px;
+  border-radius: 6px; background: var(--accent-soft); color: var(--text); font-size: 10px; line-height: 1.35;
+}
+.upload-notices button { flex: 0 0 auto; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 10px; padding: 0; }
+.upload-notices button:hover { color: var(--text); }
+
+/* ---------- Stats bar: legible but compact -- not the point of the page ---------- */
+.scanner-stats-wrap { flex: 0 0 auto; }
+.scanner-stats { display: grid; grid-template-columns: repeat(9, 1fr); gap: 0; border-top: 1px solid var(--line); }
+.scanner-stat { min-width: 0; padding: 6px 12px; border-right: 1px solid var(--line); }
+.scanner-stat:last-child { border-right: 0; }
+.scanner-stat span { display: block; color: var(--dim); font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scanner-stat strong { display: block; margin-top: 2px; font-size: 14px; line-height: 1.15; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--accent-strong); }
+.scanner-progress { height: 3px; background: var(--line); overflow: hidden; }
+.scanner-progress-fill { height: 100%; background: var(--good); transition: width 0.3s ease; }
+
+@media (max-width: 1500px) {
+  .scanner-stats { grid-template-columns: repeat(5, 1fr); }
+  .scanner-stat:nth-child(5) { border-right: 0; }
+}
+
+/* ---------- Main content column ---------- */
+.scanner-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+
+/* ---------- Results sheet (one row per company) -- the star of the page ---------- */
+/* The wrap owns the flexible/pinned height and carries the resize handle;
+   the sheet itself just fills whatever height the wrap ends up with. */
+.leads-sheet-wrap { flex: 1 1 auto; min-height: 260px; display: flex; flex-direction: column; position: relative; }
+.leads-sheet-resize-handle { flex: 0 0 auto; height: 9px; margin-top: -5px; cursor: row-resize; touch-action: none; position: relative; z-index: 3; }
+.leads-sheet-resize-handle::after { content: ""; position: absolute; left: 50%; top: 3px; width: 48px; height: 3px; border-radius: 2px; transform: translateX(-50%); background: var(--line-strong); }
+.leads-sheet-resize-handle:hover::after, .leads-sheet-resize-handle:active::after { background: var(--accent); }
+.leads-sheet { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.leads-sheet-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.leads-sheet-head h2 { margin: 0; font-size: 15px; font-weight: 800; color: var(--text); }
+.leads-sheet-head > div:first-child span { display: block; margin-top: 1px; color: var(--muted); font-size: 11px; }
+.leads-sheet-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.leads-sheet-toolbar select, .leads-sheet-toolbar button, .sheet-filter-input {
+  height: 30px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px;
+  background: var(--surface); color: var(--text); font-size: 11.5px; font-weight: 650; cursor: pointer;
+}
+.sheet-filter-input { width: 190px; cursor: text; font-weight: 400; }
+.leads-sheet-toolbar button:hover { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-soft); }
+.leads-sheet-toolbar select { cursor: pointer; font-weight: 500; }
+.primary-btn { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+.primary-btn:hover { background: var(--accent-strong) !important; }
+
+.columns-popover {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: var(--accent-soft);
+}
+.columns-popover label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text); cursor: pointer; }
+
+/* ---------- Shared grid-row sheet primitives (Results + Scan Audit) ----------
+   Real CSS grid rows, not a <table>: every column's width lives only in its
+   own grid track, so dragging one column's handle can only ever change that
+   one track -- it cannot touch any other column's size, only its position. */
+.sheet-scroll { flex: 1; min-height: 0; overflow: auto; }
+.sheet-row { display: grid; align-items: stretch; width: max-content; min-width: 100%; }
+.sheet-head-row { position: sticky; top: 0; z-index: 2; background: var(--accent-soft); }
+.sheet-cell {
+  min-width: 0; padding: 8px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  color: var(--text); font-size: 13px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center;
+}
+.sheet-cell.num { justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.sheet-num-cell { justify-content: center; color: var(--dim); font-size: 11px; font-weight: 650; background: var(--surface-soft); }
+.sheet-th {
+  position: relative; color: var(--accent-strong); font-weight: 800; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.03em; border-bottom: 0; cursor: grab;
+}
+.sheet-th.dragging { opacity: 0.4; background: var(--accent-soft-strong); }
+.sheet-head-row .sheet-num-cell { background: transparent; color: var(--accent-strong); font-weight: 800; cursor: default; }
+.sheet-row:not(.sheet-head-row):hover .sheet-cell { background: var(--accent-soft); }
+/* The row-number column is deliberately never color-coded on its own -- an
+   unexplained tint with no legend is worse than no signal. The score pill
+   (with its own tooltip) is the one place status color carries meaning. */
+.sheet-empty { padding: 44px 20px; color: var(--muted); text-align: center; font-size: 13px; }
+
+.col-resize-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: col-resize; touch-action: none; }
+.col-resize-handle:hover, .col-resize-handle:active { background: var(--accent); opacity: 0.5; }
+
+/* Never wraps: a cell is one line, always. Widen the column (drag its
+   resize handle) or hover for the full value in a tooltip instead. */
+.bullet-list { display: inline; white-space: nowrap; }
+.bullet-item { display: inline; }
+.bullet-sep, .bullet-dot { margin: 0 4px; color: var(--dim); }
+.statement-cell b { font-weight: 700; color: var(--accent-strong); }
+
+.differs-badge { margin-left: 8px; color: var(--warn); font-weight: 700; cursor: help; }
+.differs-value { font-weight: 600; }
+.dup-badge { margin-left: 8px; padding: 1px 6px; border-radius: 5px; background: var(--bad-soft); color: var(--bad); font-size: 9.5px; font-weight: 700; cursor: help; }
+
+.score-cell { display: flex; align-items: center; gap: 6px; }
+.score-pill { min-width: 32px; height: 21px; border-radius: 11px; display: grid; place-items: center; background: var(--good-soft); color: var(--good); font-size: 11px; font-weight: 800; padding: 0 6px; }
+.score-pill.warn { background: var(--warn-soft); color: var(--warn); }
+.recon-badge { font-size: 10px; font-weight: 700; }
+.recon-badge.good { color: var(--good); }
+.recon-badge.bad { color: var(--bad); }
+
+/* ---------- Scan Audit (one row per document, collapsed by default) ---------- */
+.audit-table-section { flex: 0 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+/* Fixed, not shrinkable: it always opens to a real, usable size. If that
+   pushes total page content past the viewport, .forge-scanner's own
+   overflow-y:auto is the escape hatch -- the page scrolls instead of this
+   panel silently squashing itself down to nothing. */
+.audit-table-section.open { flex: 0 0 460px; display: flex; flex-direction: column; }
+.audit-table-toggle {
+  width: 100%; min-height: 40px; border: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; background: transparent; cursor: pointer; text-align: left; color: var(--text); font-size: 12px;
+}
+.audit-table-toggle:hover { background: var(--accent-soft); }
+.audit-table-toggle strong { font-size: 13px; font-weight: 800; }
+.audit-table-toggle small { margin-left: 8px; color: var(--muted); font-weight: 400; }
+.audit-table-body { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.audit-table-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.audit-table-actions label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.audit-details { max-width: 320px; }
+.row-duplicate .sheet-cell { background: #fdf6ee; }
+
+.grid-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 9.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.02em; background: var(--accent-soft); color: var(--muted);
+}
+.grid-badge.status-complete { background: var(--good-soft); color: var(--good); }
+.grid-badge.status-needs_review { background: var(--warn-soft); color: var(--warn); }
+.grid-badge.status-failed, .grid-badge.status-stopped { background: var(--bad-soft); color: var(--bad); }
+.grid-badge.status-skipped { background: var(--surface-soft); color: var(--dim); }
+.grid-badge.status-extracting, .grid-badge.status-ocr, .grid-badge.status-validating, .grid-badge.status-queued { background: var(--accent-soft); color: var(--accent-strong); }
+
+/* ---------- Popup modals (Options, OCR files) ---------- */
+.scanner-modal-overlay {
+  position: fixed; inset: 0; z-index: 60; background: rgba(20, 28, 48, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 18px;
+}
+.scanner-modal { width: 420px; max-width: 100%; max-height: 80vh; display: flex; flex-direction: column; background: var(--surface); border-radius: 12px; box-shadow: 0 20px 60px rgba(20, 28, 48, 0.3); overflow: hidden; }
+.scanner-modal-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--accent-soft); }
+.scanner-modal-head h2 { margin: 0; font-size: 14px; font-weight: 800; color: var(--accent-strong); }
+.scanner-modal-close { width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; font-size: 13px; color: var(--muted); }
+.scanner-modal-close:hover { background: var(--surface-soft); color: var(--text); }
+.scanner-modal-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.scanner-modal-body h3 { margin: 0 0 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+.modal-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--text); }
+.modal-field select, .modal-field input { height: 30px; width: 160px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--text); padding: 0 8px; font-size: 11.5px; }
+.ocr-file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 160px; overflow: auto; }
+.ocr-file-list li { padding: 5px 8px; border-radius: 6px; background: var(--surface-soft); font-size: 11px; word-break: break-all; }
+.muted-copy { margin: 0; color: var(--muted); font-size: 11px; }
+
+/* ---------- Send (routing) -- a modal, not a permanent panel ---------- */
+.routing-modal { width: 560px; }
+.rep-option-list { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.rep-option { min-height: 28px; display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; }
+.rep-option input { width: 13px; height: 13px; }
+.routing-quick-actions { display: flex; gap: 8px; margin-top: 8px; }
+.routing-quick-actions button { height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; cursor: pointer; font-size: 11px; font-weight: 650; }
+.routing-quick-actions button:hover { border-color: var(--accent); color: var(--accent-strong); }
+.routing-command-toggle { width: 100%; height: 34px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; padding: 0 11px; background: #fff; cursor: pointer; }
+.routing-command-toggle span { font-size: 11px; font-weight: 650; }
+.routing-command-toggle small { color: var(--muted); font-size: 9px; }
+.routing-command-box { margin-top: 7px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.routing-command-box textarea { width: 100%; min-height: 56px; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 10.5px; line-height: 1.45; }
+.routing-command-box button { height: 27px; margin-top: 6px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; cursor: pointer; font-size: 10px; font-weight: 650; }
+.routing-preview { margin-top: 9px; padding: 9px; border-radius: 9px; background: var(--surface-soft); border: 1px solid var(--line); }
+.routing-preview.valid { background: var(--good-soft); border-color: #c9e6da; }
+.routing-preview-head { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; font-weight: 700; }
+.routing-preview-head b { min-width: 20px; text-align: right; }
+.routing-preview p { margin: 6px 0 9px; color: var(--muted); font-size: 9.5px; line-height: 1.4; }
+.assignment-list { display: grid; gap: 0; max-height: 80px; overflow: auto; }
+.assignment-list > div { min-height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); font-size: 9.5px; }
+.assignment-list > div:first-child { border-top: 0; }
+.assignment-list span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assignment-list b { white-space: nowrap; font-weight: 650; }
+/* Deliberately small and quiet: sending is a rare, final step, not something
+   the layout should be pushing the eye toward. */
+.send-primary { height: 30px; margin-top: 9px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--surface); color: var(--accent-strong); cursor: pointer; font-size: 11px; font-weight: 700; }
+.send-primary:hover { background: var(--accent); color: #fff; }
+.send-primary svg { width: 13px; height: 13px; }
+.routing-message { margin: 8px 2px 0; color: var(--muted); font-size: 9.5px; line-height: 1.4; }
+
+.storage-panel { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 9px 18px; border-top: 1px solid var(--line); background: var(--surface-soft); }
+.storage-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.storage-value { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; }
+.storage-panel button { margin-left: auto; height: 27px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--text); font-size: 11px; font-weight: 650; cursor: pointer; }
+.storage-panel button:hover { background: var(--accent-soft); border-color: var(--accent); }
+.storage-panel button:disabled { opacity: 0.6; cursor: default; }

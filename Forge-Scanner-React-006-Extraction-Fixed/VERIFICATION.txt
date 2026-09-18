@@ -1,0 +1,131 @@
+Forge Scanner React 006 — Extraction Fixed — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+BUILD
+================================================================
+  npm install                      OK   147 packages
+  npm run build                    OK   tsc --noEmit clean, vite build clean
+    dist/assets/index-ayvPbSGB.css
+    dist/assets/index-BHsdxnF_.js
+    dist/scanner-vendor/                9 local PDF.js + Tesseract assets, 29 MB
+  npm ci --cache ./npm-cache --offline   OK   147 packages, no network
+
+================================================================
+TESTS — 286 passed, 0 failed, 11 suites, each in its own process
+================================================================
+  Clean-code audit                             102 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    36 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  11 passed   0 failed
+  Queue isolation                                4 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+
+FINAL VERIFICATION — two consecutive passes, nothing changed between
+  Pass 1   286 passed, 0 failed
+  Pass 2   286 passed, 0 failed
+  dist/ SHA-256 (identical in both passes):
+    e729cb7a66c658e17d74e42b2a1d2439626c9336dd0eda5cc799fd095bfc3ef4
+
+================================================================
+REAL DOCUMENT BATCH — the same 61 files, 005 vs 006
+================================================================
+  metric                      005      006
+  files scanned                61       61
+  failed                        0        0
+  timeouts                      0        0
+  runtime                   33.9s    31.5s
+  remote origins                0        0
+
+  leads built                  61       21     <- 14 companies in the folders
+  business name found           0       55
+  text layer trusted           34       39
+  deposit total found          34       39
+  revenue found                38       41
+  bank recognised              42       42
+  account number found         55       42     <- see below, this is a fix
+
+  document types            005      006
+  bank_statement             61       43
+  application                 0       13
+  unreadable                  0        5
+
+  The 13 lost account numbers were all on application forms, and every one of
+  them was a telephone number scraped off the form and presented as a bank
+  account number. 006 routes applications down the application path, so those
+  fabricated account numbers are gone. Verified file by file.
+
+================================================================
+WHAT WAS FIXED
+================================================================
+  1. Applications were classified as bank statements.
+     classifyDocument tested for wording real application PDFs do not use
+     ('requested funding amount' when the forms say 'Requested Financing
+     Amount'), and matched bare tokens 'ein' and 'ssn' as substrings, which
+     fired inside ordinary words and were worthless as evidence. The phrase
+     list now matches the wording the documents actually use. All 13
+     applications in the batch are now identified.
+
+  2. A document with no evidence was still labelled a bank statement.
+     processDocument hard-coded docType 'bank_statement' for anything that was
+     not an application. It now reports what the evidence supports. The full
+     statement analysis still runs on every document, so nothing that used to
+     extract stopped extracting.
+
+  3. The business name was never recovered from statements.
+     pipeline.js set companyNameGuess to null with a comment saying the caller
+     would fill it; the caller only tried three labelled patterns that these
+     statements never print. The new companyName.js reads, in order: an
+     explicit label, an unlabelled line carrying a legal entity suffix, then a
+     DBA line. It returns null when there is no evidence and never guesses.
+
+  4. Statements that emit one text item per character were unreadable.
+     Row reconstruction joined every item with a space, turning Truist
+     statements into '2 3 H U N D R E D  V E N T U R E S  I N C'. Items are now
+     joined by the measured gap between them, which rebuilds real words and
+     leaves ordinary word-per-item statements byte-identical. This alone lifted
+     trusted text from 34 to 39 and deposits from 34 to 39.
+
+  5. Mail-sort barcodes were captured as part of the business name.
+     'ACECMKMEIGOCICAAMGOAGCMK A-1 SERVICES GOES ANYWHERE LLC' is now read as
+     the company alone. The rule needs both a 16+ character run of capitals and
+     four consecutive consonants, so real words like INTERNATIONAL are safe.
+
+  6. Two different company-key rules existed.
+     companyAggregator.js and leads.ts each had their own normaliser, and
+     neither ignored the legal entity suffix, so '4Bs Entertainment' and
+     '4Bs Entertainment LLC' were two leads. There is now one rule in
+     companyName.js, used by both.
+
+================================================================
+NOT FIXED — still open, and why
+================================================================
+  - Six documents have no text layer at all (0 characters). They are the
+    Abbaspour statements. OCR recovers them, but OCR is off by default and
+    that default is approved behaviour, so it was not changed. Running the
+    same batch with OCR on recovers all six. An automatic per-file fallback to
+    OCR when a PDF yields no text would fix this permanently; it changes an
+    approved default, so it needs your decision.
+
+  - One company still splits into two leads: the statements print
+    '1950 ORIGINALS LLC' and the application prints "1950'S Original".
+    Those are different words, not a formatting difference, so merging them
+    would need fuzzy matching that could merge genuinely different businesses.
+    Not done without your say-so.
+
+  - 60 of 61 documents are still 'needs review'. The reasons are counted in
+    the batch output: reconciliation mismatch (30), high unparsed line ratio
+    (21), reconciliation not possible (13). These are transaction-level
+    parsing gaps, which are a separate piece of work from this one.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - The other 58 files of the 119-file batch; only the 61 supplied were run.
+  - Real CRM lead sending and freeform routing; both need host CRM callbacks.
+  - Electron packaging itself.

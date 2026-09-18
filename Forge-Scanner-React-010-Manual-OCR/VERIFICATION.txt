@@ -1,0 +1,119 @@
+Forge Scanner React 010 — Manual OCR — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+Machine: 4 cores, 16 GB
+
+================================================================
+BUILD
+================================================================
+  npm run build                    OK   tsc --noEmit clean, vite build clean
+    dist/index.html                     0.45 kB
+    dist/assets/index-ayvPbSGB.css     14.19 kB
+    dist/assets/index-C3PgrJ2r.js     331.15 kB
+    dist/scanner-vendor/                9 local PDF.js + Tesseract assets, 29 MB
+
+================================================================
+TESTS — 444 passed, 0 failed, 14 suites, each in its own process
+================================================================
+  Clean-code audit                             130 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    51 passed   0 failed
+  Statement balance equation                    66 passed   0 failed
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  21 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+  Manual OCR (real browser)                     12 passed   0 failed   NEW
+
+================================================================
+FINAL VERIFICATION — two consecutive passes, nothing changed between
+================================================================
+  Pass 1   444 passed, 0 failed
+  Pass 2   444 passed, 0 failed
+  dist/ SHA-256 (identical in both passes):
+    6c3ab03c92e7db447eedbdb4364ebdbf84882611dab2d67a8a07e07557030ed8
+
+================================================================
+WHAT CHANGED — OCR never starts on its own
+================================================================
+BEFORE (007 to 009)
+  A regular scan silently fell back to OCR whenever a PDF had no usable text
+  layer. The user was not asked and was not told it was happening; the run just
+  took longer. An image file was failed outright with `ocr_required_for_image`.
+
+NOW
+  A regular scan reads the text layer. A file with no usable text layer is
+  reported as needing OCR and left alone — not read, not failed. The menu then
+  offers "Run OCR on flagged" with the count beside it, and that control reads
+  exactly those files. The flag clears once a file has been read, so it is not
+  offered twice. The scan mode is never changed by any of this: it stays on
+  Regular. Setting the mode to OCR by hand still reads every file, unchanged.
+
+  An image file is now reported as needing OCR rather than failed. The file was
+  never the problem; it just has to be read a different way.
+
+PROVED IN A REAL BROWSER (scripts/test-manual-ocr-browser.mjs, 12 checks)
+  - the scanner starts with OCR off
+  - a regular scan starts no OCR worker at all
+  - a page with no text layer is reported as needing OCR, not read by it
+  - such a file is not failed for having no text
+  - a readable file is never flagged, and is still extracted normally
+  - the Run OCR control reads the flagged file, and OCR really runs
+  - the flag clears once the file has been read
+  - the readable file is left alone by the OCR run
+  - a manual OCR run does not change the stored scan mode
+  - nothing reached the network and no page error was raised
+
+================================================================
+SPEED — the real 61-document batch, through the built scanner
+================================================================
+                                        009        010
+  Regular scan                        27.2 s     15.1 s     1.8x faster
+    (009 ran OCR inside it; 010 does not)
+  Run OCR on the 6 flagged files          —      15.1 s
+  Both, when OCR is asked for          27.2 s     30.3 s
+  OCR mode, every file                 91.1 s     91.1 s
+
+  Running both costs a little more than 009, because the flagged files go round
+  the queue a second time. That is the price of not deciding for the user.
+
+  Regular scan alone: 61 files, 0 failed, 0 timeouts, 0 retries, 0 OCR runs,
+  6 files flagged, 0 network requests, 0 page errors.
+
+================================================================
+THE FIGURES ARE UNCHANGED
+================================================================
+The whole flow was run end to end and compared with 009 document by document on
+22 fields each — status, document type, page count, whether OCR was used, text
+trusted, character count, text reason, bank, account number, company, opening
+balance, deposits, withdrawals, closing balance, summary evidence, revenue,
+revenue source, whether it reconciled, what reconciled it, the reason, the
+difference, confidence level — plus the full list of confidence reasons.
+
+  009 automatic OCR  vs  010 regular + Run OCR : 61 documents, 0 differences
+  009 OCR mode       vs  010 OCR mode          : 61 documents, 0 differences
+
+  The six files 010 flags are exactly the six 009 read automatically:
+    01-2026 Abbaspour Farmers.pdf     01-2026 Abbaspour Statement.pdf
+    02-2026 Abbaspour Farmers.pdf     02-2026 Abbaspour Statement.pdf
+    03-2026 Abbaspour Statement.pdf   12-December Abbaspour.pdf
+
+  After the manual pass: 0 files left flagged, 6 read by OCR.
+  Bank statements reconciled : 47 of 48, mismatches 0
+  Average extraction score   : 94.3%
+
+================================================================
+NOT VERIFIED
+================================================================
+  - An image file (PNG/JPG) dropped into a regular scan is now flagged rather
+    than failed. That path is covered by the engine and queue tests, but no
+    real photographed statement was supplied to this session to run through it.
+  - 12-December Abbaspour.pdf still cannot be proved: OCR does not recover the
+    row carrying its opening balance. Unchanged since 008.
+  - The other 58 files of the original 119-file batch. Not supplied.
+  - Real CRM lead sending, freeform routing, and Electron packaging itself —
+    unchanged, and all still requiring the host application.

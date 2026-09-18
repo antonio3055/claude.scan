@@ -1,0 +1,141 @@
+Forge Scanner React 012 — Company Info — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+TESTS — 491 passed, 0 failed, 15 suites, each in its own process
+================================================================
+  Clean-code audit                             136 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    63 passed   0 failed
+  Statement balance equation                    84 passed   0 failed
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  21 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+  Manual OCR (real browser)                     12 passed   0 failed
+  Company info (real browser)                   11 passed   0 failed   NEW
+
+  Two consecutive passes, nothing changed between.
+  dist/ SHA-256 (identical in both):
+    d80b9c773773633531a121ef3576f56bc0cc1b315327737775007b33a45e259b
+
+================================================================
+WHAT WAS ADDED
+================================================================
+Every statement now carries `statementIdentity`: the holder name exactly as the
+bank printed it, any DBA on the statement, and the address split into street,
+town, state and postcode.
+
+Every lead now carries `companyInfo`: the application's name, DBA and address,
+the distinct values read off the statements, and three flags saying which of the
+three differ. The extraction panel shows both, side by side, under "On the
+statements", with the differing ones marked.
+
+Neither source overwrites the other. That is the point: a business is often
+banked under a name that is not the one on its incorporation, and the bank often
+holds an address the application has moved on from.
+
+================================================================
+MEASURED ON THE SUPPLIED 60-DOCUMENT BATCH
+================================================================
+  Companies with a statement name     12 of 12
+  Companies with a statement address  11 of 12
+  Addresses that were wrong                 0   (every one checked by hand
+                                                 against the document)
+
+  Differences the scanner surfaced, which were invisible before:
+
+    the application says           the statements say
+    G&s Metal Products INC         G & S METAL PRODUCTS CO., INC.
+    G Boil Wholesale CORP          GB OIL WHOLESALE CORP
+    East Staff LLC                 ESTAFF LLC
+    Greers Ferry Heat And Air      GREERS FERRY HEAT AND AIR LLC
+    Foods And Finds                FOODS AND FINDS LLC
+    Ellis Family Chiropractic      ELLIS FAMILY CHIROPRACTIC, PC
+    Hammerhead Holdings            EVERLAST ENTERPRISES INC
+                                   MAR LAM INDUSTRIES INC
+
+  The last is not a spelling difference: that folder's statements are in two
+  other companies' names. It is now on the record instead of being invisible.
+
+  Addresses read, one per company:
+    1201 RICHARDSON DR STE 180, RICHARDSON, TX 75080-4610
+    11901 CONANN CT, AUSTIN, TX 78753
+    8378 SENECA TURNPIKE SUITE 1, NEW HARTFORD, NY 13413
+    7 TAMARACK HILL DR APT 5, POUGHKEEPSIE, NY 12603
+    515 W VALENCIA DR SUITE E, FULLERTON, CA 92832
+    3330 E 79TH ST, CLEVELAND, OH 44127-1831
+    1361 AMBERLEA DR E, DUNEDIN, FL 34698-4714
+    1077 N WILLOW AVE STE 105, CLOVIS, CA 93611-4415
+    7575 GREERS FERRY RD, GREERS FERRY, AR 72067-9479
+    834 E HAMMOND LN, PHOENIX, AZ 85034-6515
+    13978 WILD LUPINE ST, PARKER, CO 80134-4684
+
+================================================================
+HOW THE ADDRESS IS READ, AND WHAT IT REFUSES TO READ
+================================================================
+  The address sits under the holder's name but rarely on its own: the bank sets
+  its own address and phone numbers in a column beside it, and rebuilding the
+  rows interleaves the two. Rows are not counted — the first street after the
+  name is taken, then the first town after that street, which steps over the
+  bank's column without knowing anything about the bank.
+
+  Checked in the real browser and in the engine suite:
+    - the bank's own town is never taken as the holder's
+    - marketing copy after the street is cut at the street type
+      ("2998 SCOTT BLVD reserve your seat by calling..." -> "2998 SCOTT BLVD")
+    - a town row carrying the bank's column is still read
+      ("CLEVELAND OH 44127-1831 Online: wellsfargo.com")
+    - a mail-sort code before the house number is dropped
+    - no address is invented when none is printed
+
+================================================================
+SAME PLACE, DIFFERENT WORDS
+================================================================
+  An application says "1201 Richardson Drive, Richardson, TX 75080"; the bank
+  writes to "1201 RICHARDSON DR STE 180, RICHARDSON, TX 75080-4610". One address
+  written twice. Reporting that as a difference would bury the ones that really
+  are different, so addresses are compared on the house number with the
+  postcode, not on the words.
+
+  Names are compared the other way — as printed. "Datalab Infotech Corporation"
+  and "DATALAB INFOTECH INC" are one company for grouping, and exactly the
+  difference worth showing.
+
+================================================================
+TWO NAME DEFECTS FIXED ALONGSIDE
+================================================================
+  - "ESTAFFLLC4812 ESTAFF LLC": the account number fused onto the name in the
+    routing block is dropped — but only when the code restates the name, so
+    "23HUNDRED VENTURES INC", "366 Metro Mart INC", "984 LLC" and
+    "4Bs Entertainment LLC" all keep their leading characters. The first attempt
+    at this rule stripped "23HUNDRED" and was caught by re-running the first
+    batch; the rule was tightened rather than shipped.
+  - "04-13-2026 ZEL FROM AL MAWA LLC": a row opening with a posting date is a
+    transaction, not the account holder, and is no longer read as a company.
+
+================================================================
+NOTHING ELSE CHANGED
+================================================================
+  The first 61-document batch was re-run end to end and compared with 011
+  document by document across 14 fields: 60 documents, 0 differences.
+  Reconciliation holds at 47 of 48 there and 39 of 48 on the new batch, with no
+  mismatches in either.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - Whether the Hammerhead statements really belong to EVERLAST ENTERPRISES and
+    MAR LAM INDUSTRIES, or the wrong name is being read. The scanner now reports
+    what the statements say; someone who knows the account has to judge it.
+  - One company's two statement addresses differ only by a postcode digit
+    (93611 against 83611) — an OCR misread. Both are shown rather than one being
+    chosen.
+  - The applications in these batches print no DBA field at all, so the DBA
+    comparison was exercised against a built fixture, not a real form.
+  - Real CRM lead sending, freeform routing, Electron packaging — unchanged.

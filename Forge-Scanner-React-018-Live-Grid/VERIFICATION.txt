@@ -1,0 +1,125 @@
+Forge Scanner React 018 — Live Grid — verification record
+Verified: 2026-09-16   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+WHY THIS BUILD EXISTS
+================================================================
+Build 017 added the same feature set (live results grid, zip upload, xlsx
+export, storage panel) on a scaffolded TanStack Start app — full auth
+system, embedded database, server-side rendering, none of which this
+scanner uses. That stack produced three separate real Windows failures
+across three rounds of real bug reports and fixes:
+  1. "spawn vite ENOENT" — npm's Windows .cmd-shim issue in a build script.
+  2. A production-only bug: package.json's "sideEffects": false let the
+     bundler silently delete the entire ported engine (21 files kept only
+     for their side effect of attaching to globalThis.ScannerEngine) —
+     the production build shipped a scanner with no engine in it at all.
+  3. After both of those were fixed and verified, Start still did nothing
+     on the real machine, unreproducible from this sandbox.
+
+None of these are scanner bugs — they are all fallout from machinery
+(SSR, auth, an embedded database, a heavier bundler pipeline) the scanner
+never asked for. 018 builds the same features directly onto 016's proven,
+already-shipping Vite + React app instead. No new framework, no server, no
+auth, no database — every one of the three failure classes above is
+structurally impossible here.
+
+================================================================
+TESTS — 519 passed, 0 failed, 15 suites, each in its own process
+================================================================
+  Clean-code audit                             140 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    65 passed   0 failed
+  Statement balance equation                    99 passed   0 failed
+  Transaction parsing                           23 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  21 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+  Manual OCR (real browser)                     12 passed   0 failed
+  Company info (real browser)                   15 passed   0 failed
+
+  Two consecutive passes, nothing changed between.
+  dist/ SHA-256 (identical in both):
+    b6f7d1e1af836d8baa6e3362b8267afca7a5002474e16eebb09441c9c824fb68
+
+  This is the exact same 519/519 result as build 016's own baseline —
+  every existing suite, including the real-browser ones that exercise
+  QueuePanel directly, passed unchanged despite QueuePanel gaining zip
+  upload, a timer and a notices list. Nothing this build touched broke
+  anything already verified.
+
+================================================================
+REAL BATCH — byte-for-byte against the known 016 baseline
+================================================================
+  Batch: scan15test, 61 real files, via scripts/run-batch.mjs --then-ocr
+
+                              016 baseline (recorded)   018 (this run)
+  Completed                   50                         50
+  Needs review                 11                         11
+  Used OCR                      6                          6
+  Text layer trusted        61/61                      61/61
+  Statements reconciled     47/48                      47/48
+  Statements that mismatch      0                          0
+  Average extraction score  94.3%                      94.3%
+
+  Identical. This build's changes are additive UI; the engine and queue
+  underneath were not touched, and this confirms it.
+
+================================================================
+NEW FEATURES — each exercised with real documents, not just built
+================================================================
+  Live results grid
+    Real scan of a real document (366 (1).pdf) through the grid: company,
+    bank, address, account, balances, reconciliation all matched the known
+    baseline exactly — 2 EVERFRESH MARKET INC., Bank of America, opening
+    $17,163.93, ending $8,242.09, deposits $123,176.10, withdrawals
+    $132,097.94, reconciles Yes, revenue $93,176.10.
+
+  Zip upload
+    Built a real zip from 11 real files across two companies (5 needing
+    OCR, 4 not, plus 2 applications). Dropped it in: "11 files found in
+    zip-test.zip" notice shown, all 11 correctly queued. A regular-only
+    scan correctly left the OCR-needing files at needs_review without
+    reading them (OCR never starts on its own, unchanged 016 behavior).
+    "Run OCR on flagged" then completed 4 of them with real, correct data
+    (ABBASPOUR INC, Farmers Bank / Indiana Members Credit Union, real
+    balances, reconciles Yes) live in the grid as each one finished.
+    Zero page errors across the whole run.
+
+  Export to .xlsx
+    Real download triggered from the grid, opened and read back with
+    openpyxl: correct header row and correct data row matching the scan.
+
+  Timer and progress bar
+    First check (two small, fast, no-OCR files) showed the timer frozen at
+    0:00 and progress already at 100% within a second — looked wrong.
+    Re-checked against a real OCR run instead of assuming either a bug or
+    that it was fine: 0:00 -> 0:04 -> 0:10 -> 0:20 across ten real seconds,
+    confirmed correct. The first result was the scan finishing before the
+    timer's first 500ms tick, not a broken timer -- resolved by testing
+    against an operation slow enough to actually observe, not by guessing.
+
+  Storage panel + Clear cache
+    Scanned a real file, opened the panel: real non-zero byte count shown.
+    Clicked Clear cache, then read IndexedDB's own raw contents directly
+    (not just the displayed number): documents store and files store both
+    confirmed empty (0, 0). The grid correctly showed its real empty state
+    ("No statements in the grid") after clearing.
+
+================================================================
+NOT DONE IN THIS BUILD
+================================================================
+  - No Windows one-click launcher (bundled Node, hidden console, desktop
+    shortcut). Run the same way every build in this project always has:
+    npm install && npm run dev, or npm run build && npm run preview for a
+    faster production-mode run. 017's launcher work targeted a framework
+    this build does not use and was not carried over.
+  - Pause/Continue and the pre-existing menu actions (Restart stopped,
+    Retry failed) are unchanged 016 behavior, covered by the existing
+    suite above but not independently re-verified with new tests in this
+    pass.

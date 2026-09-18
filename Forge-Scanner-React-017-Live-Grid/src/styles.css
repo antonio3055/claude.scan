@@ -1,0 +1,106 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-sans: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+
+  --color-bg: #efece6;
+  --color-surface: #f7f5f1;
+  --color-surface-2: #fffcf7;
+  --color-surface-3: #ebe7df;
+  --color-fg: #1c1917;
+  --color-muted: #6b6560;
+  --color-subtle: #8a847c;
+  --color-border: #ddd7cc;
+  --color-border-strong: #c9c2b5;
+  --color-primary: #1a3a4a;
+  --color-primary-hover: #24485c;
+  --color-primary-fg: #f6f3ec;
+  --color-ring: #1a3a4a;
+
+  --color-complete: #1b6b45;
+  --color-complete-dim: #e5f3eb;
+  --color-review: #8a5a12;
+  --color-review-dim: #f6edd9;
+  --color-failed: #9b2c2c;
+  --color-failed-dim: #f6e4e2;
+  --color-scanning: #1d4f7a;
+  --color-scanning-dim: #e3eef6;
+  --color-queued: #6b6560;
+  --color-queued-dim: #ece8e1;
+  --color-danger: #8f2e2e;
+  --color-danger-hover: #7a2626;
+  --color-danger-fg: #fbf6f4;
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  --shadow-border:
+    0px 0px 0px 1px rgb(28 25 23 / 0.06),
+    0px 1px 2px -1px rgb(28 25 23 / 0.06),
+    0px 2px 4px 0px rgb(28 25 23 / 0.04);
+  --shadow-border-hover:
+    0px 0px 0px 1px rgb(28 25 23 / 0.08),
+    0px 1px 2px -1px rgb(28 25 23 / 0.08),
+    0px 2px 4px 0px rgb(28 25 23 / 0.06);
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --width-col-name: 14rem;
+  --width-col-status: 8.75rem;
+  --width-col-wide: 15rem;
+  --width-col-addr: 18rem;
+  --width-col-num: 8.25rem;
+  --width-col-mid: 9.5rem;
+
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

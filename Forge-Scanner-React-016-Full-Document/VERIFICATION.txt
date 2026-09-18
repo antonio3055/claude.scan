@@ -1,0 +1,114 @@
+Forge Scanner React 016 — Full Document — verification record
+Verified: 2026-09-15   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+CHANGE — both scan modes read the whole document, no practical cap
+================================================================
+  regularPages: 3  -> 9999
+  ocrPages:     1  -> 9999
+  (Math.min(doc.numPages, pageLimit) still caps this to whatever the
+  document actually has — this is "no limit", not a literal page count.)
+  Settings-panel page inputs raised to accept up to 9999 as well.
+
+================================================================
+TESTS — 519 passed, 0 failed, 15 suites, each in its own process
+================================================================
+  Clean-code audit                             140 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    65 passed   0 failed
+  Statement balance equation                    99 passed   0 failed
+  Transaction parsing                           23 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  21 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+  Manual OCR (real browser)                     12 passed   0 failed
+  Company info (real browser)                   15 passed   0 failed
+
+  Two consecutive passes, nothing changed between.
+  dist/ SHA-256 (identical in both):
+    571abccb91fa88d21cbd20c3b40fcf82124b7b0f80fdc4e180e13904ed79a308
+
+================================================================
+THREE DEFECTS FOUND WHEN THE WHOLE DOCUMENT WAS FINALLY READ, AND FIXED
+================================================================
+  Reading more pages surfaced a document that used to score clean only
+  because its debit section, past the old page cap, was never reached:
+  "goodcents pest controlnk -compressed-protected.pdf" (12 pages, batch 2).
+  With the full document read it came back as a false reconciliation
+  MISMATCH, difference $66,755.85 — a claim that the bank's own printed
+  summary is wrong. Tracing it down found three separate bugs:
+
+  1. balanceEquation.js zeroed every deposit/withdrawal component whose
+     sign could not be proven exactly, instead of reporting its closest
+     reading. This document's real debit total, $75,266.74, was reported
+     as $0. Fixed with closestSigns(): signs already fixed by print or
+     keyword are kept, and the remaining ones are chosen to come closest
+     to the printed ending — never marked verified, but no longer zeroed.
+
+  2. transactionParser.js recognised "Electronic Deposits" and "Electronic
+     Withdrawals/Payments" as section headings, but not "Electronic
+     Credits" / "Electronic Debits" — the exact heading this document
+     used for its 60 transaction rows, all misread as credits with $0 in
+     debits as a result. Fixed by widening both section regexes.
+
+  3. reconciliation.js discarded an existing, real but UNVERIFIED
+     statement-summary equation (difference $23.68) in favour of this
+     scanner's own row-by-row transaction totals — and across 211 heavily
+     OCR'd debit line items spanning several pages, that row-level total
+     was far worse (difference $66,755.85). Added a new outcome,
+     reconciles: null, reason: 'equation_not_provable': an unproven
+     reading straight from the statement's own printed summary is
+     stronger evidence than hundreds of reconstructed OCR'd rows, and is
+     now reported honestly as "cannot be proven" rather than forced to a
+     false pass or reported as a contradiction the evidence doesn't
+     support.
+
+  Verified on the real document, before and after all three fixes:
+
+    deposits         $0              -> $76,403.68
+    withdrawals       $0              -> $75,266.74
+    reconciliation    false, mismatch -> null, unproven
+    difference        $66,755.85      -> $23.68
+
+  Six new tests added: 3 in test-balance.mjs, 3 in test-transactions.mjs.
+  No existing test was contradicted — every reconcile() call site was
+  checked, and none passes a non-null, unverified equation that the new
+  branch would now intercept.
+
+================================================================
+ALL THREE REAL BATCHES RE-RUN, SEQUENTIALLY, WITH THE COMPLETED FIX SET
+================================================================
+                        before (015)              after (016)
+  batch 1 (61 files)    47/48 reconciled, 0 mm     47/48 reconciled, 0 mm
+  batch 2 (60 files)    39/48 reconciled, 0 mm     40/48 reconciled, 0 mm
+  batch 3 (95 files)    73/77 reconciled, 0 mm     73/77 reconciled, 0 mm
+
+  (0 mm = 0 mismatches, in every run, before and after.)
+
+  Batch 2's reconciled count rose by exactly the one document this
+  record describes — the goodcents statement, now correctly reported as
+  unproven rather than a false mismatch. No other batch's numbers moved.
+
+  batch 1 — 61 files, 50 completed, 11 needs review, 0 failed, 0 timeouts
+            6 used OCR, avg extraction score 94.3%, 106.2s total
+  batch 2 — 60 files, 24 completed, 36 needs review, 0 failed, 0 timeouts
+            6 used OCR, avg extraction score 76.6%, 201.3s total
+  batch 3 — 95 files, 68 completed, 27 needs review, 0 failed, 0 timeouts
+            6 used OCR, 4 retried once (all completed, 3 verified,
+            1 honestly unproven — none a mismatch), avg extraction score
+            87.2%, 92/95 text trusted, 505.7s total
+
+================================================================
+NOT VERIFIED
+================================================================
+  - Real CRM lead sending, freeform routing, Electron packaging —
+    unchanged, not exercised by this batch.
+  - The three fixes were verified against the one real document that
+    surfaced them, plus the full regression suite and all three batches.
+    No other document in any of the three batches needed any of the
+    three fixes to reconcile correctly.

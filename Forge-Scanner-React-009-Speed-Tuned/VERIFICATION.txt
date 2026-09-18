@@ -1,0 +1,124 @@
+Forge Scanner React 009 — Speed Tuned — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+Machine: 4 cores, 16 GB
+
+================================================================
+BUILD
+================================================================
+  npm run build                    OK   tsc --noEmit clean, vite build clean
+    dist/index.html                     0.45 kB   (gzip 0.29 kB)
+    dist/assets/index-ayvPbSGB.css     14.19 kB   (gzip 3.34 kB)
+    dist/assets/index-DcG93Dz2.js     330.57 kB   (gzip 104.46 kB)
+    dist/scanner-vendor/                9 local PDF.js + Tesseract assets, 29 MB
+
+================================================================
+TESTS — 422 passed, 0 failed, 13 suites, each in its own process
+================================================================
+  Clean-code audit                             125 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    49 passed   0 failed
+  Statement balance equation                    66 passed   0 failed
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  18 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+
+================================================================
+FINAL VERIFICATION — two consecutive passes, nothing changed between
+================================================================
+  Pass 1   422 passed, 0 failed
+  Pass 2   422 passed, 0 failed
+  dist/ SHA-256 (identical in both passes):
+    a9eaa3bdf2f3447a7c5325d4d5b327ba597a8421099e9823515bfdfa4e899c65
+
+================================================================
+SPEED — the real 61-document batch, through the built scanner
+================================================================
+                            008        009
+  Regular scan            62.6 s    27.2 s     2.3x faster
+  OCR scan               220.5 s    91.1 s     2.4x faster
+
+  Both runs offline, 0 failures, 0 timeouts, 0 retries, 0 network requests,
+  0 page errors, in both builds.
+
+WHERE THE TIME WENT, measured from the scanner's own stage log
+
+  regular scan            008        009
+    PDF text layer      18.3 s     3.1 s     one worker instead of 61
+    OCR fallback        29.1 s    overlapped across lanes
+    wall                62.6 s    27.2 s
+
+  OCR scan                008        009
+    OCR                195.1 s    overlapped across lanes
+    discarded text
+      layer pass         3.1 s       0 s     not read in OCR mode
+    wall               220.5 s    91.1 s
+
+================================================================
+THE RESULTS ARE UNCHANGED — this is the point of the build
+================================================================
+Both scan modes were run end to end on 008 and on 009 and compared document by
+document, on 22 fields each: status, document type, page count, whether OCR was
+used, whether the text was trusted, character count, text reason, bank, account
+number, company, opening balance, deposits, withdrawals, closing balance,
+summary evidence, revenue, revenue source, whether it reconciled, what
+reconciled it, the reason, the difference, and the confidence level — plus the
+full list of confidence reasons.
+
+  REGULAR  008 vs 009 : 61 documents, 0 field differences
+  OCR      008 vs 009 : 61 documents, 0 field differences
+
+  Bank statements reconciled, regular scan : 47 of 48, mismatches 0
+  Average extraction score, regular scan   : 94.3%
+
+The underlying reads were checked directly as well:
+  PDF text with one shared worker vs a worker per document — byte-identical
+  OCR text at 1, 2, 3 and 4 lanes                          — byte-identical
+
+================================================================
+MEASURED AND REJECTED — faster, but the figures went wrong
+================================================================
+  RENDERING OCR PAGES SMALLER
+    scale   OCR time   statements reconciling   what broke
+      2.0     26.4 s          5 of 6            (shipped)
+      1.5     21.3 s          3 of 6            one statement's deposits read 0
+      1.25    21.1 s          3 of 6            business names became noise
+      1.0     19.1 s          0 of 6            nothing usable
+    19% faster for wrong numbers is not faster. Scale 2 kept.
+
+  TESSERACT PAGE SEGMENTATION AND INVERT SETTINGS
+    baseline 24.6 s (5 of 6)    no invert 24.3 s (5 of 6)
+    psm 4    24.3 s (2 of 6)    psm 6     24.2 s (5 of 6)
+    No measurable gain anywhere, and single-column mode broke three documents.
+    Settings left as shipped.
+
+================================================================
+RELIABILITY UNDER SEVERAL LANES — what was checked, not assumed
+================================================================
+  - Every file is read exactly once; no two lanes take the same file.
+  - Lanes really overlap, and never more than the lane count.
+  - At one lane the queue is byte-for-byte the old sequential queue, in order.
+  - A file that fails in one lane does not stop the others.
+  - A failed file resets only its own lane's OCR worker.
+  - Stop ends every lane, and every PDF/OCR worker is terminated within 5 s
+    (verified in the real browser, clicking the real Stop button).
+  - The good/bad/good queue run still fails exactly the three bad files, drains
+    to idle, and leaves 0 workers running (verified in the real browser).
+  - The engines are released when the queue goes idle, so an idle scanner holds
+    no PDF worker and no Tesseract worker.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - Lane counts above 4. The cap is 4 and this machine has 4 cores, so 3 lanes
+    were exercised here; 4 lanes were measured only in the standalone OCR test.
+  - 12-December Abbaspour.pdf still cannot be proved: OCR did not recover the
+    row carrying its opening balance. Unchanged from 008.
+  - The other 58 files of the original 119-file batch. Not supplied.
+  - Real CRM lead sending, freeform routing, and Electron packaging itself —
+    all unchanged from 008 and all still requiring the host application.

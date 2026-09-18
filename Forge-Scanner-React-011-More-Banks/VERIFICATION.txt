@@ -1,0 +1,140 @@
+Forge Scanner React 011 — More Banks — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+TESTS — 466 passed, 0 failed, 14 suites, each in its own process
+================================================================
+  Clean-code audit                             134 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    51 passed   0 failed
+  Statement balance equation                    84 passed   0 failed
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  21 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+  Manual OCR (real browser)                     12 passed   0 failed
+
+  Two consecutive passes, nothing changed between.
+  dist/ SHA-256 (identical in both):
+    068a7a2ee4a216f1cfe9926a3b94c13936f89f8e81bb0ed7a4c61b92a93dee6a
+
+================================================================
+THE SECOND BATCH — 60 real documents, 12 companies, never seen before
+================================================================
+  Files on disk                     60
+  Scanned (reached a final state)   60
+  Failed                             0
+  Timed out                          0
+  Retried                            0
+  Flagged as needing OCR             7   (read on the manual pass)
+  Remote origins attempted           0
+  Page errors                        0
+  Regular scan                    14.8 s
+  Manual OCR pass                 27.8 s
+  Text layer trusted             57/60
+
+  Bank statements                   48
+  Reconciled against the bank's
+    own printed summary             39   (81%)
+  Statements that do not add up      0
+
+  BEFORE THE FIXES (build 010):     27 of 48 reconciled
+  AFTER  (build 011):               39 of 48 reconciled
+  First batch, unchanged:           47 of 48 reconciled, 0 differences on
+                                    60 documents across 14 compared fields
+
+  Extraction coverage, of 60 documents
+    business name                   56
+    account number                  47
+    deposit total                   45
+    withdrawal total                41
+    bank recognised                 21
+
+================================================================
+FIVE DEFECTS FOUND ON THESE DOCUMENTS, AND FIXED
+================================================================
+  1. A Wells Fargo summary table puts the account number in its first column:
+       Account number  Beginning balance  Total credits  Total debits  Ending
+       4474485638      $74,953.21         $247,648.93    -$316,016.74  $6,585.40
+     The account number was read as the opening balance, so the table could
+     never balance.
+
+  2. A Comerica summary is set beside a column of addresses and phone numbers,
+     which rebuilding the rows interleaves into it. The branch telephone
+     number, the PO box and the postcode were all read as amounts.
+
+     1 and 2 are one rule: banks punctuate money and leave identifiers bare, so
+     a figure counts only when it carries a decimal point, a thousands
+     separator or a currency mark.
+
+  3. In the same layout a row of the address column can land between a label
+     and its figure ("Ending balance" / "period for this account is $0.00" /
+     "$39,695.48"). The two are now paired across one intervening row, never
+     across another label.
+
+  4. Access FCU prints the figure ABOVE its own label ("$2,717.99" then "Ending
+     Balance"). Labels and figures are now paired whichever is printed first.
+
+  5. A Chase PDF whose text layer holds only structural markers
+     ("*start*summary" "*end*summary") was not reported as needing OCR, because
+     it had characters. A text layer with no printed amount at all is now
+     reported as needing OCR — a statement always has amounts.
+
+  Where credits and debits are equal and opposite, the figures alone cannot say
+  which column is which; the header now does ("Total credits Total debits"),
+  and where several layouts prove at once the busiest account wins, which is
+  the rule already used between accounts inside one layout.
+
+================================================================
+THE NINE STATEMENTS THAT STILL DO NOT RECONCILE — and why
+================================================================
+  5  Ellis Family Chiropractic (Access FCU, Dec/Jan/Feb/Mar/APR)
+     The summary prints a beginning and an ending balance and no totals at all.
+     There is no arithmetic on page one to prove. Reading every page would let
+     the transaction rows settle it; the default reads three.
+  2  Online activity printouts, not statements:
+       East Staff "Account Activity 4-2026" and Gcg "APRIL UPDATED MTD".
+     A screen print of transactions with no summary block. Nothing to prove.
+  1  Foods and Finds, Chase, October: read by OCR after being flagged, and the
+     first page still yields no summary.
+  1  Good Cents: a 12-page scan, OCR reads page one, the summary is not on it.
+
+  None of these is a wrong number. Every one is the scanner declining to claim
+  a reconciliation it cannot prove.
+
+================================================================
+KNOWN LIMITATION — grouping documents into leads
+================================================================
+  The batch produced 24 leads from 12 company folders. The statements and the
+  application in a folder are grouped correctly in 4 of the 12; the other 8
+  split, for these reasons:
+
+    the same business written two ways
+      "G & S METAL PRODUCTS CO., INC."  vs  "G&S Metal Products INC"
+      "ESTAFF LLC"                      vs  "East Staff LLC"
+      "GB OIL WHOLESALE CORP"           vs  "G Boil Wholesale CORP" (folder)
+    a statement in a different entity's name
+      Hammerhead Holdings' folder holds statements for EVERLAST ENTERPRISES
+      INC and MAR LAM INDUSTRIES INC
+    a name not found at all
+      3 documents, mostly the activity printouts
+
+  Stacking the suffix strip so "CO., INC." keys the same as "INC" was tried and
+  reverted: it also turns "Test Company LLC" into "test", which would merge
+  businesses that merely share a first word. Splitting one company into two
+  leads is visible and recoverable; merging two is neither.
+
+  This is reported, not fixed. It needs a decision about how names are matched.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - The 100-document MCA batch. Only a 3 KB macOS alias arrived, not the files.
+  - Whether the Hammerhead statements really belong to other entities or the
+    wrong name is being read. It needs someone who knows the account.
+  - Real CRM lead sending, freeform routing, Electron packaging — unchanged.

@@ -1,0 +1,59 @@
+Forge Scanner React 004 — Offline Hardened — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+BUILD
+  npm install                      OK   147 packages, no errors
+  npm run build                    OK   tsc --noEmit clean, vite build clean
+    dist/index.html                     0.45 kB   (gzip 0.29 kB)
+    dist/assets/index-ayvPbSGB.css     14.19 kB   (gzip 3.34 kB)
+    dist/assets/index-DJmO0pyQ.js     322.53 kB   (gzip 100.77 kB)
+    public/scanner-vendor/              9 local PDF.js + Tesseract assets, 29.7 MB
+
+TESTS — 174 passed, 0 failed, across 7 suites, each in its own Node process
+  Clean-code audit                              70 passed   0 failed
+  Extraction engine (v10)                       45 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  11 passed   0 failed
+  Queue isolation                                4 passed   0 failed
+  Job runner (timeout / cancel / retry)         20 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          10 passed   0 failed
+
+OFFLINE BROWSER RUN — real headless Chromium, browser context set offline
+  Runtime requests observed         9
+  Remote origins attempted          0
+  Missing local assets              0
+  Page errors / console errors      0
+  Real PDF parsed offline           yes, local pdf.min.js + pdf.worker.min.js only
+  Real image OCRed offline          yes, local tesseract.min.js + worker.min.js
+                                    + WASM core + eng.traineddata.gz only
+  OCR read back through the engine  account number 1234567890,
+                                    beginning 12500, deposits 48250, ending 39710
+
+FINAL VERIFICATION — two consecutive clean passes, nothing changed between them
+  Pass 1   174 passed, 0 failed
+  Pass 2   174 passed, 0 failed
+  dist/ SHA-256 (both passes, identical):
+    7a49e53ee6496872eb0ff952e230ac6053d6bb9d563be1ef57c010f496a08ffc
+
+OFFLINE INSTALL
+  npm ci --cache ./npm-cache --offline    OK   147 packages, no network
+
+DEFECTS FOUND IN 003 AND FIXED HERE
+  1. Production build was broken: 2 TypeScript errors (useResizablePanels.ts:32,34).
+     003 had never produced a dist/.
+  2. Every extraction engine module carried a dead CommonJS branch. Under a real
+     Vite build `typeof module !== 'undefined'` resolves true, so the bundle took
+     the require() path and every scan failed with "require is not defined".
+     Only a real build plus a real browser run exposes this.
+
+NOT VERIFIED
+  - Clicking Stop mid-scan in the real browser UI. Stop cancellation is verified
+    against the production job runner in Node; the browser fixtures complete in
+    seconds, so there is no deterministic window to interrupt. Not faked.
+  - Real CRM lead sending. It requires the host CRM `onSendLeads` callback and is
+    not simulated.
+  - Freeform routing beyond the built-in deterministic patterns. It requires the
+    optional host CRM `routingInterpreter` callback.
+  - Electron packaging itself. The renderer module is prepared for it (relative
+    asset base, local vendor assets, no Node usage in the renderer), but no
+    Electron shell was built or run here.

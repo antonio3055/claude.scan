@@ -1,0 +1,8 @@
+node_modules/
+dist/
+npm-cache/
+.DS_Store
+public/scanner-vendor/pdfjs/
+public/scanner-vendor/tesseract/
+public/scanner-vendor/fonts/
+fixtures/

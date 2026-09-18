@@ -1,0 +1,128 @@
+Forge Scanner React 015 — Third Batch — verification record
+Verified: 2026-09-15   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+TESTS — 510 passed, 0 failed, 15 suites, each in its own process
+================================================================
+  Clean-code audit                             140 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    65 passed   0 failed
+  Statement balance equation                    93 passed   0 failed
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  21 passed   0 failed
+  Queue isolation + lanes                       11 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+  Manual OCR (real browser)                     12 passed   0 failed
+  Company info (real browser)                   15 passed   0 failed
+
+  Two consecutive passes, nothing changed between.
+  dist/ SHA-256 (identical in both):
+    2b1ca0b8b0bf8211a5ba5e62d2503aabe7275422521e89f91bdfc07481d529b3
+
+================================================================
+THE THIRD BATCH — 95 documents, 18 companies, never seen before
+================================================================
+  Files on disk                     95
+  Scanned (reached a final state)   95
+  Failed                             0
+  Timed out                          0
+  Retried                            0
+  Flagged as needing OCR             6   (read on the manual pass)
+  Remote origins attempted           0
+  Page errors                        0
+  Regular scan                    41.4 s
+  Manual OCR pass                 62.6 s
+  Text layer trusted             90/95
+  Average extraction score       86.3%
+
+  Bank statements                   77
+  Reconciled against the bank's
+    own printed summary             71   (92%)
+  Statements that do not add up      0
+
+  BEFORE THE FIXES (build 014):     61 of 77 reconciled, 2 mismatches
+  AFTER  (build 015):               71 of 77 reconciled, 0 mismatches
+
+  Extraction coverage, of 95 documents
+    business name                   90
+    account number                  77
+    name on the statement           72
+    deposit total                   72
+    address on the statement        71
+    withdrawal total                71
+    bank recognised                 64
+
+  Leads built                       23 from 18 company folders; 18 of them
+                                    carry their application with their
+                                    statements.
+
+================================================================
+FOUR DEFECTS FOUND ON THESE DOCUMENTS, AND FIXED
+================================================================
+  1. A First Fidelity summary carries two equal statistics beside its totals:
+
+       Previous Balance 10.00      Days This Statement Period 31
+       9 Deposits/Credits 140,000.00   Average Ledger 7,622.90
+       9 Checks/Debits   140,000.00   Average Collected 7,622.90
+       Current Balance 10.00
+
+     An equal pair like that can be added to both sides without disturbing the
+     balance, so several readings balanced, the solver refused all of them, and
+     the statement was reported as a MISMATCH — a claim that the bank's own
+     arithmetic is wrong, which is far stronger than "could not prove".
+
+     Where several readings balance, the one that moves the least money is now
+     taken: treating those statistics as movements would invent deposits the
+     bank never counted. A genuine tie is still reported as unsolved. Two
+     statements moved from mismatch to reconciled.
+
+  2. "Current Balance .43" — an amount under a dollar printed without its
+     leading zero. The closing balance was never found. A decimal inside a
+     larger figure is still not read as an amount of its own.
+
+  3. "3319125179 $7,141.84 $119,387.30 -$126,808.58 -$279.44" — an overdrawn
+     closing balance in a column table was read as positive, so the table never
+     balanced. Both balances in a table now carry their printed sign, as they
+     already did in a labelled block.
+
+  4. "Apr 14, 2026 THORO CORP" — a transaction row dated with a month name was
+     read as the company. The rule already rejected "04-13-2026 ..."; it now
+     rejects both ways of writing a date.
+
+================================================================
+THE SIX THAT DO NOT RECONCILE — and why none is a wrong number
+================================================================
+  2  griffis_enterprise (US Bank). The Account Summary sits past page three,
+     behind pages of legal text. Proved when every page is read; the scan
+     default reads three. Unchanged approved setting.
+  2  Online transaction exports with no summary block at all — Bank of Colorado
+     account activity, and a month-to-date export. Nothing to prove, even with
+     every page read (checked).
+  2  Scans where OCR read page one of nineteen and page one of four, and the
+     summary is not on that page.
+
+================================================================
+NOTHING ELSE CHANGED
+================================================================
+  Batch 1 (61 documents) and batch 2 (60 documents) were re-run end to end and
+  compared with 014 across 17 fields, the three statement identity fields
+  included:
+
+    batch 1   60 documents, 0 differences   47 of 48 reconciled, 0 mismatches
+    batch 2   60 documents, 0 differences   39 of 48 reconciled, 0 mismatches
+
+================================================================
+NOT VERIFIED
+================================================================
+  - Five documents in this batch carry no company name: three Truist online
+    exports and two transaction exports that print no holder block at all.
+    They reconcile; they simply have no name on them, so they stand as their
+    own leads.
+  - The 3-page scan default still hides summaries printed later in a statement.
+    Measured here on two documents; raising the default is your decision.
+  - Real CRM lead sending, freeform routing, Electron packaging — unchanged.

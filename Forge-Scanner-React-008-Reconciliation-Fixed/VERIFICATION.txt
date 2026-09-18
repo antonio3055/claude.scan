@@ -1,0 +1,182 @@
+Forge Scanner React 008 — Reconciliation Fixed — verification record
+Verified: 2026-09-14   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
+
+================================================================
+BUILD
+================================================================
+  npm install                      OK
+  npm run build                    OK   tsc --noEmit clean, vite build clean
+    dist/index.html                     0.45 kB   (gzip 0.29 kB)
+    dist/assets/index-ayvPbSGB.css     14.19 kB   (gzip 3.34 kB)
+    dist/assets/index-n5M5feuK.js     329.21 kB   (gzip 103.96 kB)
+    dist/scanner-vendor/                9 local PDF.js + Tesseract assets, 29 MB
+
+  npm ci --cache ./npm-cache --offline   OK   no network, 0 vulnerabilities
+  Rebuilt after the offline install: dist/ byte-identical.
+
+================================================================
+TESTS — 397 passed, 0 failed, 13 suites, each in its own process
+================================================================
+  Clean-code audit                             114 passed   0 failed
+  Extraction engine (v10)                       47 passed   0 failed
+  Extraction (classification + company name)    49 passed   0 failed
+  Statement balance equation                    66 passed   0 failed   NEW
+  Transaction parsing                           20 passed   0 failed
+  File validation / corruption / duplicates     14 passed   0 failed
+  Queue recovery (app restart)                  11 passed   0 failed
+  Queue isolation                                4 passed   0 failed
+  Job runner (timeout / cancel / retry)         28 passed   0 failed
+  Vendor loader (dead-load recovery)            11 passed   0 failed
+  Offline browser (PDF.js + Tesseract)          11 passed   0 failed
+  Stop cancellation (real browser)              11 passed   0 failed
+  Queue failure (real browser)                  11 passed   0 failed
+
+================================================================
+FINAL VERIFICATION — two consecutive passes, nothing changed between
+================================================================
+  Pass 1   397 passed, 0 failed
+  Pass 2   397 passed, 0 failed
+  dist/ SHA-256 (identical in both passes):
+    049a76d540669acd5d07013528df49a12cc832020adb003d40a36ac82c736e9c
+
+================================================================
+WHAT 008 FIXES — statement reconciliation
+================================================================
+THE DEFECT
+
+  The engine read a statement's summary block by guessing which printed
+  figures were credits and which were debits from a list of category names,
+  and never checked the answer. On the supplied 61-document batch that
+  produced a summary that did not add up on 23 of the 24 documents where all
+  four figures were found — silently, because nothing tested it.
+
+  Reported before the fix:
+    reconciliation_not_possible   43 documents
+    reconciliation_mismatch        4 documents
+    reconciles = true              1 document
+
+THE FIX
+
+  src/scanner/engine/balanceEquation.js reads the signs the bank itself
+  printed, and where a sign is missing solves for the one assignment that
+  reproduces the printed ending balance. A reading is reported as verified
+  only when the arithmetic closes to the cent.
+
+  Ten per-bank summary adapters are replaced by that one module. What remains
+  beside it is genuinely different: online-banking activity printouts (which
+  print no equation), OCR pattern recovery, and summing dated deposit rows.
+
+  Also fixed, each found while measuring the above:
+    - Reconciliation no longer depends on reading every page. The summary is
+      on page one; only the transaction-row check needs the whole statement.
+    - A part-read statement reports the bank's own deposit total as revenue
+      instead of a share of the month (deposits.trueRevenueSource says which).
+    - An application is judged on application wording, not on bank-statement
+      wording it was never going to contain.
+    - A statement whose arithmetic adds up is trusted whatever wording it
+      uses, which rescues two-column summaries.
+    - A holder row that ran into the marketing column beside it still yields
+      the business name ("ABBASPOUR INC IMCU now offers Visa credit cards.").
+    - An address line is an address even when a suffix follows it on the row.
+    - deposits.totalDeposits read a key that did not exist.
+    - A money figure written $2,000.00 was discarded as a year.
+    - coreUtils.labeledMoney had no callers left and was removed.
+
+================================================================
+REAL DOCUMENT BATCH — scan15test.zip, run through the built scanner
+================================================================
+NOTE ON SIZE: the original request named a 119-file batch. The archive
+supplied for this work, scan15test.zip, contains 61 PDFs in 14 company
+folders. All 61 were run. Nothing was padded, corrected or filled in.
+
+REGULAR MODE (the approved default: 3 pages, OCR off)
+  Files on disk                     61
+  Accepted into the queue           61
+  Scanned (reached a final state)   61
+  Failed                             0
+  Timeouts                           0
+  Retried once                       0
+  Stopped                            0
+  Used OCR (automatic fallback)      6
+  Leads built                       14
+  Average extraction score        94.3%
+  Total runtime                   59.2 s
+  Remote origins attempted           0
+  Page errors                        0
+
+  Bank statements                   48
+  Reconciled against the bank's
+    own printed summary             47   (98%)
+  Statements that do not add up      0
+  Could not be proved                1   (12-December Abbaspour.pdf — OCR
+                                          did not recover its opening balance)
+
+  Text layer trusted             61/61
+  Business name extracted        61/61 statements and applications
+  Completed                         14
+  Needs review                      47   (43 of them only because the default
+                                          reads 3 pages — see below)
+
+BEFORE AND AFTER, same 61 files, same default settings
+  metric                                 007        008
+  reconciled from the bank's summary       1         47
+  reconciliation mismatches                4          0
+  reconciliation not possible             43          1
+  text layer trusted                      43         61
+  documents flagged no_statement_signal   13          0
+  average extraction score              63.6%      94.3%
+  leads built                             17         14   (correctly merged)
+  runtime                               61.6 s     59.2 s
+
+INDEPENDENT CHECK — month-to-month continuity
+  Across the batch, every statement's closing balance equals the next
+  statement's opening balance for the same account, exactly, in all 12
+  multi-month company folders. Nothing in the engine compares statements to
+  each other, so this is independent evidence that the figures are right.
+
+THE ONE SETTING WORTH YOUR DECISION
+  The approved default reads 3 pages of each statement. That is why 43 of 61
+  documents are marked "read in part" and sent to review, even though their
+  printed summary reconciles. Measured on the same 61 files, same build:
+
+                          3 pages (default)   every page
+    Completed                    14               50
+    Needs review                 47               11
+    Read in part                 43                6
+    Average score              94.3%            94.3%
+    Runtime                    59.2 s           68.7 s
+
+  Reading every page costs about 9 seconds across 61 files and clears 34
+  documents out of review. The headline figures do not change, because they
+  come from the printed summary either way; what the extra pages add is the
+  transaction detail — MCA positions, NSF counts, daily balance.
+
+  This was NOT changed. "Regular scan default: 3 pages" is an approved rule.
+
+================================================================
+NOT VERIFIED
+================================================================
+  - 12-December Abbaspour.pdf. OCR did not recover the row carrying its
+    opening balance, so its arithmetic cannot be proved. The row is present
+    in the PDF image; the text is not. Reported as such, not guessed.
+  - The other 58 files of the original 119-file batch. They were not supplied
+    to this session.
+  - Real CRM lead sending. It requires the host CRM `onSendLeads` callback.
+  - Freeform routing beyond the built-in deterministic patterns. It requires
+    the optional host CRM `routingInterpreter` callback.
+  - Electron packaging itself. The renderer module is prepared for it, but no
+    Electron shell was built or run here.
+  - A `file://` origin. Chromium blocks Web Workers on `file://`, so the
+    browser suites serve dist/ over a local app origin (http://scanner.localhost)
+    that stands in for Electron's local app protocol. No server runs and no
+    network request is made.
+
+================================================================
+OBSERVATION ABOUT THE SUPPLIED DOCUMENTS, NOT A DEFECT
+================================================================
+  - The three statements in the folder "366 Metro Mart INC" are printed in
+    the name of 2 EVERFRESH MARKET INC. The scanner reads the holder name off
+    the statement, so it groups them under that name. The folder name and the
+    statements disagree; the statements are what the scanner trusts.
+  - "23hundred ventures inc MARCH BS.pdf" and "...APRIL BS.pdf" are the same
+    statement, so that company's total counts one month twice.
