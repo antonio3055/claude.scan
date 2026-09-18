@@ -142,7 +142,6 @@ export function LeadsSheet({ leads, running, onExport, onRemoveUnassociated }: P
   return (
     <section className="leads-sheet">
       <header className="leads-sheet-head">
-        <div><h2>Results</h2><span>{visible.length} of {leads.length} companies · fills in live as scans finish</span></div>
         <div className="leads-sheet-toolbar">
           <input className="sheet-filter-input" type="search" placeholder="Filter by company or owner" value={query} onChange={(e) => setQuery(e.target.value)} />
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>

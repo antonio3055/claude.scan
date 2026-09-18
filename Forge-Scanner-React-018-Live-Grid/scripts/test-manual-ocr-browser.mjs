@@ -3,8 +3,8 @@
  *
  * OCR is by far the slowest stage, so it no longer runs on its own: a
  * regular scan reads with its text layer first, same as always, and any
- * file left flagged `needsOcr` just waits there until "Run OCR on flagged"
- * is clicked by hand. A user who wants the old behaviour back can turn
+ * file left flagged `needsOcr` just waits there until "Run OCR" is clicked
+ * by hand. A user who wants the old behaviour back can turn
  * "Auto-run OCR after scan" on in Options, which restores the single
  * automatic follow-up pass. Either way, an OCR pass itself never triggers
  * another one, so a file that fails OCR outright (still `needsOcr`, never
@@ -80,16 +80,15 @@ try {
     assert.notEqual(flagged.processingStatus, 'failed');
   });
 
-  await reporter.check('"Run OCR on flagged" is enabled with the flagged file counted', async () => {
-    await scanner.page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
-    const button = scanner.page.getByRole('button', { name: /run ocr on flagged/i });
+  await reporter.check('"Run OCR" is enabled with the flagged file counted', async () => {
+    const button = scanner.page.getByRole('button', { name: /^run ocr\b/i });
     await assert.doesNotReject(button.waitFor({ state: 'visible' }));
     assert.equal(await button.isDisabled(), false);
     assert.equal((await button.textContent())?.includes('1'), true, `expected the flagged count to show 1, got: ${await button.textContent()}`);
   });
 
-  await reporter.check('clicking "Run OCR on flagged" reads it by hand', async () => {
-    await scanner.page.getByRole('button', { name: /run ocr on flagged/i }).click();
+  await reporter.check('clicking "Run OCR" reads it by hand', async () => {
+    await scanner.page.getByRole('button', { name: /^run ocr\b/i }).click();
     const settled = await waitForOcrSettled('scanned-a.pdf', 180_000);
     assert.equal(settled.usedOcr, true, 'the manual OCR pass should have read it');
     assert.equal(Boolean(settled.needsOcr), false, 'the needs-OCR flag should be cleared once OCR has run');
@@ -106,9 +105,8 @@ try {
     assert.equal(untouched.statementSummary?.deposits, 19441.82);
   });
 
-  await reporter.check('the manual "Run OCR on flagged" control is disabled once nothing needs it', async () => {
-    await scanner.page.evaluate(() => document.querySelector('details.more-menu')?.setAttribute('open', 'open'));
-    const button = scanner.page.getByRole('button', { name: /run ocr on flagged/i });
+  await reporter.check('the manual "Run OCR" control is disabled once nothing needs it', async () => {
+    const button = scanner.page.getByRole('button', { name: /^run ocr\b/i });
     await assert.doesNotReject(button.waitFor({ state: 'visible' }));
     assert.equal(await button.isDisabled(), true, 'nothing should be left needing OCR after the manual pass');
   });
