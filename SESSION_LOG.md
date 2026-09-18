@@ -368,3 +368,31 @@ reads as expected rather than broken.
 Verified with `tsc`, `vite build`, the full 514-test regression suite
 (unaffected), and a real-browser screenshot confirming the chip's new
 position and that it no longer renders inside the Options modal.
+
+---
+
+## 2026-09-18 (continued) — GitHub Actions CI added, now that suites are green
+
+This repo had no real CI — the only PR check was "Vercel Preview
+Comments," which runs no tests. Proposed adding one once all 15 suites
+were fixed (see above); user said to go ahead. Added
+`.github/workflows/ci.yml`: on every PR into `main` and every push to
+`main`, checks out, installs deps (`npm ci`), installs Playwright's
+Chromium (`npx playwright install --with-deps chromium` -- needed for the
+5 real-browser suites), then runs `npm run build` and `npm run
+test:suites`.
+
+Verified as much of this as is possible without an actual GitHub Actions
+runner: wiped `node_modules`/`dist` and re-ran `npm ci && npm run build
+&& npm run test:suites` from a clean state -- the same sequence the
+workflow runs -- and got 514/514 again. Confirmed the YAML parses
+correctly (the top-level `on:` key coming back as `true` under a generic
+YAML 1.1 parser is expected -- GitHub's own workflow parser handles this
+correctly; every GitHub Actions workflow file looks like this). Couldn't
+verify the Playwright/Chromium install step itself against a real
+fresh Ubuntu runner from inside this sandbox (this environment has its
+own pre-installed browser at a fixed path the test harness auto-detects,
+which a real CI runner won't have) -- that step uses Playwright's own
+documented, standard installation command, but genuinely watching it
+pass on an actual PR is the real confirmation, worth checking on the
+first PR this runs against.
