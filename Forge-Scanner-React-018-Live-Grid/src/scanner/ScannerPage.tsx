@@ -88,7 +88,11 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
           ref={sheetWrapRef}
           style={sheetHeight ? { flex: `0 0 ${sheetHeight}px` } : undefined}
         >
-          <LeadsSheet leads={leads} onExport={() => exportLeadsToXlsx(leads, scanner.settings.exporterInitials)} />
+          <LeadsSheet
+            leads={leads}
+            onExport={() => exportLeadsToXlsx(leads, scanner.settings.exporterInitials)}
+            onRemoveUnassociated={(fileIds) => fileIds.forEach((id) => void scanner.removeDoc(id))}
+          />
           <div
             className="leads-sheet-resize-handle"
             onPointerDown={onResizeStart}

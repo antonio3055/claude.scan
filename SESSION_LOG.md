@@ -396,3 +396,81 @@ which a real CI runner won't have) -- that step uses Playwright's own
 documented, standard installation command, but genuinely watching it
 pass on an actual PR is the real confirmation, worth checking on the
 first PR this runs against.
+
+---
+
+## 2026-09-18 (continued) — Page-level scroll, upload box shape, one-click fix for the unmatched-doc banner (Scanner 05)
+
+User reported (with a real screenshot + xlsx export from the live site) that
+the page never scrolls as a whole -- only individual panels (Results, Scan
+Audit) get their own cramped internal scrollbars -- and that the "N
+document(s) could not be matched to a company" banner (added in Scanner 03)
+was showing up on effectively every visit.
+
+**Root cause of both, found by reading the CSS, not guessed**: `body {
+overflow: hidden }` plus `.demo-shell`/`.forge-scanner` both pinned to a hard
+`height: 100vh` meant nothing could ever grow past one viewport -- Results
+and Scan Audit were forced to squeeze into whatever was left and handle their
+own overflow internally, instead of the page just getting taller and letting
+the browser's own scrollbar take over. Fixed by changing those three rules
+from a fixed `height: 100vh` to `min-height: 100vh` (`app.css`,
+`scanner.css`) and dropping `body`'s `overflow: hidden` and
+`.forge-scanner`'s now-redundant `overflow-y: auto`. Nothing about the
+Results/Audit panels' own internal layout, CSS-grid rows, or column resize/
+reorder was touched -- this only changes what happens once their content is
+taller than the panel: the page now grows and the browser scrolls it, rather
+than the content being invisibly squeezed to fit.
+
+**Unmatched-document banner**: the count it's built from (`auditSummary`'s
+`missingCompany`) is computed over every document ever saved to IndexedDB,
+not just the current scan -- documents are never auto-cleared between
+sessions (by design, so a scan can be resumed later). So a single stray
+unreadable file from any past session keeps the banner up forever, on every
+future visit, regardless of whether the current batch scanned cleanly. There
+was no way to act on it besides manually hunting through Scan Audit and
+deleting the right row. Added a "Remove flagged file(s)" button directly in
+the banner (`LeadsSheet.tsx`, wired to the existing `removeDoc` in
+`useScannerQueue.ts` via a new `onRemoveUnassociated` prop from
+`ScannerPage.tsx`) that deletes exactly the unmatched document(s) tripping
+it, in one click.
+
+**Also fixed**: the upload dropzone was a wide, short strip (`flex: 0 0 40%`
+stretched to match the toolbar's own compact height) per the user's request
+to make it "more square, taller, less wide" -- now a fixed 200×168 box,
+`.toolbar-top` changed from `align-items: stretch` to `center` so it no
+longer forces the rest of the toolbar taller too.
+
+**Verified live in a real headless browser** (not just `tsc`/build), all in
+one throwaway Playwright script (deleted after use, not checked in): 12
+synthetic bank-statement PDFs plus one image-only "blank scan" PDF (the same
+technique Scanner 03 used to trigger this exact banner) uploaded through the
+real file input, Scan Audit opened by clicking it same as a user would.
+Confirmed: page content genuinely exceeds the viewport once Scan Audit is
+open, `document.body`'s overflow is no longer `hidden`, the page actually
+scrolls when asked, the dropzone's real bounding box is narrow-and-tall
+(≤210px wide, ≥150px tall), the banner appears for the one genuinely
+unmatched file, clicking "Remove flagged file" makes the banner disappear
+*and* deletes that document from IndexedDB (not just hides it), and the
+other 12 real documents are left untouched. Full 514-test regression suite
+and `npm run build` both still clean.
+
+**Also investigated per the user's screenshot/export, not yet acted on**: a
+massively repeated block of identical rows in their live Scan Audit table
+(the same ~13 companies each appearing many times over) and one exported
+lead ("23hundred Ventures INC") whose Statements list carried an identical
+date+amount twice while `duplicateCount` was 0 for every lead in that
+export. The repeated audit rows are consistent with the documented,
+by-design behavior of `duplicateHandling: 'flag'` (duplicates stay visible
+in the audit trail, excluded from revenue) combined with documents never
+being auto-cleared between sessions -- plausible if that batch (or an
+overlapping one) had been uploaded more than once in that browser without
+"Clear cache" in between, which the "Remove flagged file" work above doesn't
+address (it only targets *unmatched* documents, not flagged *duplicates*).
+The 23hundred Ventures anomaly specifically means two documents with
+different file hashes produced identical statement numbers -- `findDuplicate`
+(SHA-256 content hash + size) correctly did NOT flag them as duplicates,
+since they are not byte-identical files, so this is either two genuinely
+separate statements that coincidentally match to the cent (very unlikely) or
+a duplicate-detection gap worth a closer look with the actual source PDFs.
+Not fixed this session -- flagging here so a future session (or this one, if
+the user provides the real files) doesn't have to re-discover it.
