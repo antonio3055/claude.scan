@@ -25,6 +25,10 @@ sessions.
 
 ## Standing rules
 
+- **Name this session "Scanner NN"** (next number after the highest
+  existing one — check the session list if unsure; as of this writing the
+  last one was "Scanner 02"), so the user can tell chats apart by order.
+  Rename the session to this near the start of the conversation.
 - **Never edit, fix, rebuild, rename, save, export, or modify any file
   until the user types the exact literal word `GO`.** Until then: inspect,
   explain, recommend only. This is a repeatedly-stated, non-negotiable
