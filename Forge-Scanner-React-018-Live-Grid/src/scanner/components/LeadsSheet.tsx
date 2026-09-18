@@ -9,6 +9,7 @@ import { useColumnOrder } from '../hooks/useColumnOrder';
 interface Props {
   leads: ScannerLead[];
   onExport: () => void;
+  onRemoveUnassociated: (fileIds: string[]) => void;
 }
 
 const NUM_WIDTH = 42;
@@ -94,7 +95,7 @@ function reconciliationBadge(lead: ScannerLead) {
   return <span className="recon-badge good" title="Every statement reconciles against the bank's own printed summary">✓ {checked.length}/{checked.length}</span>;
 }
 
-export function LeadsSheet({ leads, onExport }: Props) {
+export function LeadsSheet({ leads, onExport, onRemoveUnassociated }: Props) {
   const [sortMode, setSortMode] = useState<'revenue' | 'company'>('revenue');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -117,6 +118,14 @@ export function LeadsSheet({ leads, onExport }: Props) {
   }, [leads, query, statusFilter, sortMode]);
 
   const missingCompany = useMemo(() => auditSummary(leads).missingCompany, [leads]);
+  // Each unassociated "lead" is a single unmatched document keyed by its own
+  // fileId (see buildLeads in lib/leads.ts) -- flattening back to fileIds
+  // lets the banner remove exactly the file(s) tripping it, in one click,
+  // instead of making the user hunt them down in Scan Audit by hand.
+  const unassociatedFileIds = useMemo(
+    () => leads.filter((lead) => lead.companyName === 'Unassociated').flatMap((lead) => lead.docs.map((d) => d.fileId)),
+    [leads]
+  );
   const activeColumns = reorder.order.filter((key) => !hidden.has(key));
   // Every column track gets its own fixed pixel size, so widening one only
   // pushes the ones after it along the row -- it never changes what any
@@ -146,8 +155,13 @@ export function LeadsSheet({ leads, onExport }: Props) {
 
       {missingCompany > 0 && (
         <div className="unmatched-warning">
-          ⚠ {missingCompany} document{missingCompany === 1 ? '' : 's'} could not be matched to a company —
-          excluded from Results and the export, and its revenue is not counted above. Check Scan Audit for which file and why.
+          <span>
+            ⚠ {missingCompany} document{missingCompany === 1 ? '' : 's'} could not be matched to a company —
+            excluded from Results and the export, and its revenue is not counted above. Check Scan Audit for which file and why.
+          </span>
+          <button type="button" onClick={() => onRemoveUnassociated(unassociatedFileIds)}>
+            Remove flagged file{unassociatedFileIds.length === 1 ? '' : 's'}
+          </button>
         </div>
       )}
 

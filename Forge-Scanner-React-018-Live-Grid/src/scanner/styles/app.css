@@ -15,11 +15,13 @@
   text-rendering: optimizeLegibility;
 }
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; width: 100%; min-width: 1200px; height: 100%; min-height: 100%; }
-body { overflow: hidden; }
+html, body, #root { margin: 0; width: 100%; min-width: 1200px; min-height: 100%; }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; }
-.demo-shell { width: 100vw; height: 100vh; min-width: 1200px; padding: 12px; background: #f5f6f8; }
+/* min-height, not height: the page grows past one viewport and the browser's
+   own scrollbar takes over once content (e.g. a long Scan Audit) needs more
+   room, instead of trapping everything inside fixed-height inner panels. */
+.demo-shell { width: 100vw; min-height: 100vh; min-width: 1200px; padding: 12px; background: #f5f6f8; }
 
 /* A value the statements print differently from the application. */
 .differs {

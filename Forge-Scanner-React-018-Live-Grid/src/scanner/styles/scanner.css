@@ -19,11 +19,10 @@
   --bad: #c23c3c;
   --bad-soft: #fbe8e8;
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow-y: auto;
   color: var(--text);
   background: var(--bg);
   padding: 8px;
@@ -59,13 +58,15 @@
 /* overflow is intentionally NOT hidden here: the "..." options dropdown is an
    absolutely-positioned popover that needs to render outside this box. */
 .scanner-toolbar { flex: 0 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-.toolbar-top { display: flex; align-items: stretch; gap: 12px; padding: 10px; }
+.toolbar-top { display: flex; align-items: center; gap: 12px; padding: 10px; }
 
-/* 40% real drag-and-drop target: click anywhere inside opens the file picker too. */
+/* A real drag-and-drop target: click anywhere inside opens the file picker too.
+   Fixed square-ish size rather than stretching to the toolbar's height, so it
+   reads as a drop target instead of a thin wide strip. */
 .upload-dropzone {
-  flex: 0 0 40%; min-width: 260px; border: 2px dashed var(--accent); border-radius: 10px;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  background: var(--accent-soft); color: var(--accent-strong); cursor: pointer; text-align: left; padding: 0 16px;
+  flex: 0 0 200px; width: 200px; height: 168px; border: 2px dashed var(--accent); border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: var(--accent-soft); color: var(--accent-strong); cursor: pointer; text-align: center; padding: 12px;
 }
 .upload-dropzone:hover, .upload-dropzone.drag { background: var(--accent-soft-strong); border-color: var(--accent-strong); }
 .upload-dropzone svg { width: 26px; height: 26px; flex: 0 0 26px; }
@@ -138,7 +139,15 @@
 .leads-sheet-resize-handle:hover::after, .leads-sheet-resize-handle:active::after { background: var(--accent); }
 .leads-sheet { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .leads-sheet-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
-.unmatched-warning { flex: 0 0 auto; padding: 7px 16px; background: var(--warn-soft); color: var(--warn); font-size: 11px; font-weight: 650; border-bottom: 1px solid var(--line); }
+.unmatched-warning {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 7px 16px; background: var(--warn-soft); color: var(--warn); font-size: 11px; font-weight: 650; border-bottom: 1px solid var(--line);
+}
+.unmatched-warning button {
+  flex: 0 0 auto; height: 24px; padding: 0 10px; border: 1px solid var(--warn); border-radius: 6px;
+  background: #fff; color: var(--warn); cursor: pointer; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+}
+.unmatched-warning button:hover { background: var(--warn-soft); }
 .leads-sheet-head h2 { margin: 0; font-size: 15px; font-weight: 800; color: var(--text); }
 .leads-sheet-head > div:first-child span { display: block; margin-top: 1px; color: var(--muted); font-size: 11px; }
 .leads-sheet-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
