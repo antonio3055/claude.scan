@@ -240,7 +240,11 @@
         .replace(/\b(?:DES|ID|TRACE|REF|Transaction)\s*[:#]?\s*[A-Z0-9-]+/gi,' ')
         .replace(/(?:\*{2,}|X{2,})\d+/gi,' ')
         .replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g,' ');
-      const vals=U.moneyVals(scrubbed).map(Math.abs).filter((v)=>v>=25&&v<=250000&&!(v>=2020&&v<=2030));
+      // A funder alias already matched this line and DES/ID/TRACE/REF/phone/masked-
+      // account noise is already scrubbed out above, so a high floor here does more
+      // harm than good: some real MCA holdbacks (e.g. a daily percentage-of-sales
+      // funder) are genuinely a few dollars. Only a near-zero/blank value is noise.
+      const vals=U.moneyVals(scrubbed).map(Math.abs).filter((v)=>v>=1&&v<=250000&&!(v>=2020&&v<=2030));
       const selected=vals.length?(vals.length>=2?vals[vals.length-2]:vals[0]):null;
       hits[key].count+=1;
       if(selected!=null) hits[key].amounts.push(selected);

@@ -698,3 +698,76 @@ sized 200×168 boxes, the Options button opens the modal correctly, and a
 full real run of the user's `scan15test.zip` (61/61 settled) through the
 new toolbar -- including clicking the new standalone Run OCR button for
 real -- renders cleanly with zero console/page errors.
+
+---
+
+## 2026-09-22 — Two real bugs found and fixed against the real scan15test.zip: MCA amounts, and 366 Metro Mart/2 Everfresh merged (Scanner 05)
+
+User reported MCA withdrawal amounts wrong on a few leads, and asked again
+why "366 Metro Mart INC" / "2 EVERFRESH MARKET INC." still show as two
+separate rows despite earlier sessions looking at it. Investigated both
+with the real `scan15test.zip` before touching any code, not guessed.
+
+**MCA amounts were genuinely wrong -- root cause confirmed with real PDF
+text, not assumed.** `mcaDetector.js`'s text-fallback detector
+(`detectMcaFromText`, used when the primary transaction parser can't
+reliably structure a statement's rows) filtered out any matched dollar
+value under $25 as presumed noise. Read Aaria Tees LLC's real March
+statement directly: 12 genuine "Shopify Capital" debits that
+month, summing to $203.08 (verified by hand: $6.06, $19.88, $3.74, $18.56,
+$11.62, $13.50, $7.64, $73.93, $5.51, $6.79, $26.17, $9.68) -- but the
+engine reported $100.10, because only the 2 of those 12 payments that
+happened to clear the $25 floor got counted, and the code then treats that
+partial sum as if it were the whole month's total. Shopify Capital (and
+likely other percentage-of-daily-sales funders) legitimately debit a few
+dollars at a time, so this floor was silently discarding most of the real
+evidence on exactly the kind of funder most likely to have many small
+payments. Fixed: lowered the floor from $25 to $1 (`src/scanner/engine/
+mcaDetector.js`) -- low enough to keep genuine small MCA debits, still high
+enough to exclude blank/near-zero noise. The alias match + DES/ID/TRACE/
+REF/phone-number scrubbing that already runs before this filter is what
+actually protects against false positives; the $25 floor was redundant
+insurance that backfired.
+
+**"366 Metro Mart INC" / "2 EVERFRESH MARKET INC." now actually merge into
+one lead when their address genuinely matches**, instead of just carrying
+a "possibly the same business" badge. This was investigated multiple times
+across earlier sessions (see the very first entry in this log) and
+deliberately left as a flag-only, non-merging signal, because a later
+session broadened that same flag to fire on *every* app-only/statement-only
+pair in a batch regardless of address -- far too low-precision to safely
+auto-merge on. The fix adds a new, separate, high-precision step
+(`mergeGroupsAtSameAddress` in `lib/leads.ts`) that runs *before* leads are
+built: when an application-only document group and a statement-only
+document group share a real matching address (reusing the engine's own
+`holderAddress.sameAddress`, the same check `addressDiffers` already
+relies on), their documents are folded into one group before the normal
+per-group lead computation runs -- so revenue, score, statements and
+company info all come out of the existing, unmodified per-lead logic,
+just fed a merged document set. The broader, weaker "possibly the same
+business" flag (`flagPossibleSameBusiness`) still runs afterward for
+every pair that *doesn't* clear this bar, unchanged. `scripts/audit.mjs`
+had a stale structural check assuming `leads.ts` only ever calls
+`groups.set()` once; updated it to check what it actually meant to
+guard -- that the grouping *key* (`normalized(name)`) is only ever
+computed in one place -- since the new merge step legitimately calls
+`groups.set()` a second time while reusing keys the one true grouping pass
+already derived, never inventing a new one.
+
+Verified: `tsc`, full 516-test suite, and build all clean (one audit.mjs
+assertion updated to match the new, still-single-key design, not
+loosened). Real-browser run against the actual `scan15test.zip`: "366
+Metro Mart INC (2 EVERFRESH MARKET INC.)" now renders as one merged row
+with its address filled in from the statements (previously blank, since
+an app-only lead had no statement identity to pull one from), lead count
+dropped from 14 to 13 as expected; a different Aaria Tees LLC statement's
+Shopify Capital position now shows 28 observed payments summing to
+$938.78/mo (previously would have kept only whichever handful cleared the
+old $25 floor). Zero console/page errors either way.
+
+**Not pushed yet**: GitHub access to this repo is currently broken for
+this session (both direct git and the GitHub API return access errors on
+`antonio3055/claude.scan` specifically, despite `get_me` succeeding) --
+flagged to the user, who needs to check the repo's GitHub App
+installation/connection before this can be committed to a branch and
+opened as a PR. Working tree has the fix locally in the meantime.
