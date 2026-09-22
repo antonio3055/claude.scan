@@ -771,3 +771,32 @@ this session (both direct git and the GitHub API return access errors on
 flagged to the user, who needs to check the repo's GitHub App
 installation/connection before this can be committed to a branch and
 opened as a PR. Working tree has the fix locally in the meantime.
+
+---
+
+## 2026-09-22 (continued) — Toolbar boxes enlarged, stats tightened into a 3x3 grid, progress bar shortened (Scanner 05)
+
+Per request: dropzone and the controls box ("upload box and ocr cache
+box") were both small (200x168) relative to the rest of the toolbar; grew
+both to a matching 320x220 (`scanner.css`). The stats strip
+(`StatsStrip.tsx`'s `.scanner-stats`) was one stretched-out row of 9 equal
+columns spanning the whole middle width; changed to a tight `repeat(3,
+1fr)` grid (3 rows of 3), dropping the now-unneeded `@media (max-width:
+1500px)` 5-column fallback since a fixed 3-column grid is already compact
+at any width. The progress bar (`.scanner-progress`) no longer stretches
+the full row -- fixed at 140px, sitting under the stats instead. No
+component logic changed, purely `scanner.css`.
+
+Verified: `tsc`, full 516-test suite, and build all clean; a real-browser
+screenshot (empty state) confirms both boxes render at matching 320x220
+and the stats grid is visibly tighter; re-ran the real `scan15test.zip`
+end-to-end through the new layout (61/61 settled, zero console/page
+errors) and confirmed the earlier MCA fix and address-match merge fix
+(same session, above) both still hold under the new layout -- Aaria Tees'
+Shopify Capital position now shows exactly $203.08/mo (hand-verified
+against the real PDF), and "366 Metro Mart INC (2 EVERFRESH MARKET
+INC.)" still renders as one merged row.
+
+**Still not pushed** -- GitHub access to this repo remains broken for this
+session (see above); this commit and the previous one are both sitting
+locally, ready to push once that's reconnected.

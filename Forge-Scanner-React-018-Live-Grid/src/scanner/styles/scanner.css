@@ -37,17 +37,17 @@
 .toolbar-top { display: flex; align-items: center; gap: 12px; padding: 10px; }
 
 /* A real drag-and-drop target: click anywhere inside opens the file picker too.
-   Fixed square-ish size rather than stretching to the toolbar's height, so it
-   reads as a drop target instead of a thin wide strip. */
+   Much wider/taller than a small square, so it reads as a real drop target
+   and fills real space rather than sitting like a small icon-chip. */
 .upload-dropzone {
-  flex: 0 0 200px; width: 200px; height: 168px; border: 2px dashed var(--accent); border-radius: 10px;
+  flex: 0 0 320px; width: 320px; height: 220px; border: 2px dashed var(--accent); border-radius: 10px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   background: var(--accent-soft); color: var(--accent-strong); cursor: pointer; text-align: center; padding: 12px;
 }
 .upload-dropzone:hover, .upload-dropzone.drag { background: var(--accent-soft-strong); border-color: var(--accent-strong); }
-.upload-dropzone svg { width: 26px; height: 26px; flex: 0 0 26px; }
-.upload-dropzone b { display: block; font-size: 13px; font-weight: 800; }
-.upload-dropzone small { display: block; margin-top: 2px; font-weight: 500; opacity: 0.85; font-size: 11px; }
+.upload-dropzone svg { width: 30px; height: 30px; flex: 0 0 30px; }
+.upload-dropzone b { display: block; font-size: 15px; font-weight: 800; }
+.upload-dropzone small { display: block; margin-top: 4px; font-weight: 500; opacity: 0.85; font-size: 12px; }
 
 .toolbar-center { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
 .toolbar-title-row { display: flex; flex-direction: column; }
@@ -59,10 +59,10 @@
    (page limits, cache, run/stop/OCR, Options), only the rarer actions
    (restart, retry, clear completed, OCR files, send) stay behind "...". */
 .toolbar-controls {
-  flex: 0 0 200px; width: 200px; height: 168px; display: flex; flex-direction: column; gap: 6px;
-  padding: 10px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-soft);
+  flex: 0 0 320px; width: 320px; height: 220px; display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-soft);
 }
-.toolbar-controls-row { display: flex; align-items: center; gap: 6px; }
+.toolbar-controls-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .toolbar-action-btn {
   width: 100%; height: 26px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px;
   background: #fff; color: var(--text); font-size: 10.5px; font-weight: 650; cursor: pointer;
@@ -107,20 +107,17 @@
 .upload-notices button { flex: 0 0 auto; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 10px; padding: 0; }
 .upload-notices button:hover { color: var(--text); }
 
-/* ---------- Stats bar: legible but compact -- not the point of the page ---------- */
+/* ---------- Stats bar: tight 3x3 grid instead of one stretched-out row ---------- */
 .scanner-stats-wrap { flex: 0 0 auto; }
-.scanner-stats { display: grid; grid-template-columns: repeat(9, 1fr); gap: 0; border-top: 1px solid var(--line); }
-.scanner-stat { min-width: 0; padding: 6px 12px; border-right: 1px solid var(--line); }
-.scanner-stat:last-child { border-right: 0; }
+.scanner-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.scanner-stat { min-width: 0; padding: 5px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.scanner-stat:nth-child(3n) { border-right: 0; }
+.scanner-stat:nth-last-child(-n+3) { border-bottom: 0; }
 .scanner-stat span { display: block; color: var(--dim); font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.scanner-stat strong { display: block; margin-top: 2px; font-size: 14px; line-height: 1.15; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--accent-strong); }
-.scanner-progress { height: 3px; background: var(--line); overflow: hidden; }
+.scanner-stat strong { display: block; margin-top: 2px; font-size: 13px; line-height: 1.15; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--accent-strong); }
+/* Short and off to the side rather than stretched across the whole strip. */
+.scanner-progress { width: 140px; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .scanner-progress-fill { height: 100%; background: var(--good); transition: width 0.3s ease; }
-
-@media (max-width: 1500px) {
-  .scanner-stats { grid-template-columns: repeat(5, 1fr); }
-  .scanner-stat:nth-child(5) { border-right: 0; }
-}
 
 /* ---------- Main content column ---------- */
 .scanner-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
