@@ -800,3 +800,89 @@ INC.)" still renders as one merged row.
 **Still not pushed** -- GitHub access to this repo remains broken for this
 session (see above); this commit and the previous one are both sitting
 locally, ready to push once that's reconnected.
+
+---
+
+## 2026-09-22 (continued) — MCA "estimated monthly burden" now consistently projects the rate; two real bugs found auditing 984 LLC/Abbaspour "duplicates" (Scanner 05)
+
+User asked what "estimated monthly burden" is supposed to mean, confirmed
+the standard lending definition (a projected recurring monthly cost, used
+for DTI-style affordability math) -- i.e. the rate should be projected,
+not just whatever partial total happened to land inside one statement.
+
+**Found and fixed the real cause, with two layered bugs, both confirmed
+against the real `scan15test.zip`.** "2 EVERFRESH MARKET INC." (`366
+Metro Mart INC`)'s Forest Capital position showed $10,792.80/mo in March
+but only $1,079.28/mo in Feb -- same real $359.76/day rate both months
+(verified against the real PDF text), but Feb's statement only captures 3
+of those days (the relationship evidently started late in the month), and
+`detectMcaFromText`'s old logic (`mcaDetector.js`) always preferred
+"sum whatever I actually saw" over projecting the established rate, with
+cadence classified by a blunt hit-count threshold (`>=12` hits to count
+as "daily") instead of the date-gap-based `classifyFrequency` the
+transaction-based detector already uses successfully. Rebuilt it to match:
+track a date per hit (bank statement rows print `MM/DD` with no year --
+`U.parseDate` requires all three parts and silently returned null on
+every one, so dates are now extracted directly with a constant placeholder
+year, since only the *relative* spacing within one statement matters
+here), classify cadence from real date gaps via the existing
+`classifyFrequency`, and project the rate (`amount * 30` for daily, `*
+4.33` for weekly) whenever the observed dates span less than 20 days of
+the statement -- covering the "funder just started" and "page-limit
+truncated the read" cases alike. Once the observed dates already span
+most of a real month, the actual summed total is kept instead: a
+percentage-of-sales holdback (Shopify Capital) varies payment to payment,
+so a single projected "rate" would make Aaria Tees' already-correct
+$203.08/$938.78/$1,069.48 figures *worse*, not better -- confirmed by
+regression while building this (first pass without the "spans a full
+period" branch broke all three).
+
+**Second bug, found while chasing why the projection still wasn't taking
+for Forest Capital's February statement even after that rewrite**: a real
+$10,800 *incoming* wire ("WIRE TYPE:WIRE IN ... ORIG:1/FOREST CAPITAL
+GROUP LL ... PMT DET:B ... FOREST CAPITAL 10,800.00") was being counted as
+a Forest Capital *debit* hit, because `rawLineIsDebit`'s generic
+debit-keyword check (matching on "PMT", present in the wire's own
+reference fields) ran *before* its explicit wire-in exclusion check, so
+the wire-in signal was dead code whenever a wire's message details
+happened to also contain "pmt" -- common, since "PMT DET:" is a standard
+wire-message field. Reordered the exclusion check first. That stray hit
+carried no valid dollar amount (already excluded from `observedAmounts`)
+but its garbled reference text ("...MG OF 26/02/24...") still parsed as a
+date, corrupting the cadence-classification date range for the position's
+*other*, real hits -- so the date-trust was tightened to match the
+amount's: a hit that produced no valid dollar figure no longer contributes
+a date either, since a hit that untrustworthy for the amount is just as
+untrustworthy for the date.
+
+**Also audited, per request, why "984 LLC" and "Abbaspour INC" looked like
+they had duplicates in the export** (asked in chat, answered there, no
+code change needed): 984 LLC's two "FEB" statement rows are two genuinely
+different real half-month statement periods (`Biz 2026 Feb 1-Feb 16` /
+`Biz 2026 Feb 17-Feb 27`, this bank issues semi-monthly statements),
+correctly not OCR'd -- the short label just doesn't show the day range, so
+two real statements look identical at a glance. Abbaspour's address really
+does show twice because it has statements from two different banks
+(Farmers Bank prints `7320 E 82ND ST ... 46256-1458`, Indiana Members
+Credit Union prints `7320 E 82ND STREET ... 46256`) that format the same
+real address slightly differently, and all six of its statements are
+genuinely OCR'd (confirmed `usedOcr: true` on every one). Neither is a
+bug; both are flagged as small possible UX improvements (day-range in the
+short label; fuzzy address de-duplication) not yet built.
+
+Verified: `tsc`, full 516-test suite, and build all clean after each of
+the three edits in this entry (cadence/date rewrite, exclusion-order fix,
+date-trust guard), not just at the end. Real-browser runs against the
+actual `scan15test.zip` after every change: reconciliation stayed 0
+mismatches and 0 failed docs across all 61 documents throughout: Forest
+Capital now reads $10,792.80/mo in *both* Feb and March (previously
+$1,079.28 in Feb, a 10x understatement); every other repeat funder across
+multiple months in the batch (Kapitus, Viking Funding, FundX) now reads a
+stable, consistent burden across their own repeat statements too; Aaria
+Tees' Shopify Capital figures (a genuinely variable percentage-of-sales
+funder) are unchanged and still correct.
+
+**Still not pushed** -- GitHub access remains broken for this session; all
+three commits from this session (MCA $25 floor + address-match lead
+merge, toolbar redesign, and this entry's cadence-projection + wire-in-
+exclusion fixes) are sitting locally, ready to push once reconnected.
