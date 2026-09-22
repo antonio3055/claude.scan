@@ -698,3 +698,191 @@ sized 200×168 boxes, the Options button opens the modal correctly, and a
 full real run of the user's `scan15test.zip` (61/61 settled) through the
 new toolbar -- including clicking the new standalone Run OCR button for
 real -- renders cleanly with zero console/page errors.
+
+---
+
+## 2026-09-22 — Two real bugs found and fixed against the real scan15test.zip: MCA amounts, and 366 Metro Mart/2 Everfresh merged (Scanner 05)
+
+User reported MCA withdrawal amounts wrong on a few leads, and asked again
+why "366 Metro Mart INC" / "2 EVERFRESH MARKET INC." still show as two
+separate rows despite earlier sessions looking at it. Investigated both
+with the real `scan15test.zip` before touching any code, not guessed.
+
+**MCA amounts were genuinely wrong -- root cause confirmed with real PDF
+text, not assumed.** `mcaDetector.js`'s text-fallback detector
+(`detectMcaFromText`, used when the primary transaction parser can't
+reliably structure a statement's rows) filtered out any matched dollar
+value under $25 as presumed noise. Read Aaria Tees LLC's real March
+statement directly: 12 genuine "Shopify Capital" debits that
+month, summing to $203.08 (verified by hand: $6.06, $19.88, $3.74, $18.56,
+$11.62, $13.50, $7.64, $73.93, $5.51, $6.79, $26.17, $9.68) -- but the
+engine reported $100.10, because only the 2 of those 12 payments that
+happened to clear the $25 floor got counted, and the code then treats that
+partial sum as if it were the whole month's total. Shopify Capital (and
+likely other percentage-of-daily-sales funders) legitimately debit a few
+dollars at a time, so this floor was silently discarding most of the real
+evidence on exactly the kind of funder most likely to have many small
+payments. Fixed: lowered the floor from $25 to $1 (`src/scanner/engine/
+mcaDetector.js`) -- low enough to keep genuine small MCA debits, still high
+enough to exclude blank/near-zero noise. The alias match + DES/ID/TRACE/
+REF/phone-number scrubbing that already runs before this filter is what
+actually protects against false positives; the $25 floor was redundant
+insurance that backfired.
+
+**"366 Metro Mart INC" / "2 EVERFRESH MARKET INC." now actually merge into
+one lead when their address genuinely matches**, instead of just carrying
+a "possibly the same business" badge. This was investigated multiple times
+across earlier sessions (see the very first entry in this log) and
+deliberately left as a flag-only, non-merging signal, because a later
+session broadened that same flag to fire on *every* app-only/statement-only
+pair in a batch regardless of address -- far too low-precision to safely
+auto-merge on. The fix adds a new, separate, high-precision step
+(`mergeGroupsAtSameAddress` in `lib/leads.ts`) that runs *before* leads are
+built: when an application-only document group and a statement-only
+document group share a real matching address (reusing the engine's own
+`holderAddress.sameAddress`, the same check `addressDiffers` already
+relies on), their documents are folded into one group before the normal
+per-group lead computation runs -- so revenue, score, statements and
+company info all come out of the existing, unmodified per-lead logic,
+just fed a merged document set. The broader, weaker "possibly the same
+business" flag (`flagPossibleSameBusiness`) still runs afterward for
+every pair that *doesn't* clear this bar, unchanged. `scripts/audit.mjs`
+had a stale structural check assuming `leads.ts` only ever calls
+`groups.set()` once; updated it to check what it actually meant to
+guard -- that the grouping *key* (`normalized(name)`) is only ever
+computed in one place -- since the new merge step legitimately calls
+`groups.set()` a second time while reusing keys the one true grouping pass
+already derived, never inventing a new one.
+
+Verified: `tsc`, full 516-test suite, and build all clean (one audit.mjs
+assertion updated to match the new, still-single-key design, not
+loosened). Real-browser run against the actual `scan15test.zip`: "366
+Metro Mart INC (2 EVERFRESH MARKET INC.)" now renders as one merged row
+with its address filled in from the statements (previously blank, since
+an app-only lead had no statement identity to pull one from), lead count
+dropped from 14 to 13 as expected; a different Aaria Tees LLC statement's
+Shopify Capital position now shows 28 observed payments summing to
+$938.78/mo (previously would have kept only whichever handful cleared the
+old $25 floor). Zero console/page errors either way.
+
+**Not pushed yet**: GitHub access to this repo is currently broken for
+this session (both direct git and the GitHub API return access errors on
+`antonio3055/claude.scan` specifically, despite `get_me` succeeding) --
+flagged to the user, who needs to check the repo's GitHub App
+installation/connection before this can be committed to a branch and
+opened as a PR. Working tree has the fix locally in the meantime.
+
+---
+
+## 2026-09-22 (continued) — Toolbar boxes enlarged, stats tightened into a 3x3 grid, progress bar shortened (Scanner 05)
+
+Per request: dropzone and the controls box ("upload box and ocr cache
+box") were both small (200x168) relative to the rest of the toolbar; grew
+both to a matching 320x220 (`scanner.css`). The stats strip
+(`StatsStrip.tsx`'s `.scanner-stats`) was one stretched-out row of 9 equal
+columns spanning the whole middle width; changed to a tight `repeat(3,
+1fr)` grid (3 rows of 3), dropping the now-unneeded `@media (max-width:
+1500px)` 5-column fallback since a fixed 3-column grid is already compact
+at any width. The progress bar (`.scanner-progress`) no longer stretches
+the full row -- fixed at 140px, sitting under the stats instead. No
+component logic changed, purely `scanner.css`.
+
+Verified: `tsc`, full 516-test suite, and build all clean; a real-browser
+screenshot (empty state) confirms both boxes render at matching 320x220
+and the stats grid is visibly tighter; re-ran the real `scan15test.zip`
+end-to-end through the new layout (61/61 settled, zero console/page
+errors) and confirmed the earlier MCA fix and address-match merge fix
+(same session, above) both still hold under the new layout -- Aaria Tees'
+Shopify Capital position now shows exactly $203.08/mo (hand-verified
+against the real PDF), and "366 Metro Mart INC (2 EVERFRESH MARKET
+INC.)" still renders as one merged row.
+
+**Still not pushed** -- GitHub access to this repo remains broken for this
+session (see above); this commit and the previous one are both sitting
+locally, ready to push once that's reconnected.
+
+---
+
+## 2026-09-22 (continued) — MCA "estimated monthly burden" now consistently projects the rate; two real bugs found auditing 984 LLC/Abbaspour "duplicates" (Scanner 05)
+
+User asked what "estimated monthly burden" is supposed to mean, confirmed
+the standard lending definition (a projected recurring monthly cost, used
+for DTI-style affordability math) -- i.e. the rate should be projected,
+not just whatever partial total happened to land inside one statement.
+
+**Found and fixed the real cause, with two layered bugs, both confirmed
+against the real `scan15test.zip`.** "2 EVERFRESH MARKET INC." (`366
+Metro Mart INC`)'s Forest Capital position showed $10,792.80/mo in March
+but only $1,079.28/mo in Feb -- same real $359.76/day rate both months
+(verified against the real PDF text), but Feb's statement only captures 3
+of those days (the relationship evidently started late in the month), and
+`detectMcaFromText`'s old logic (`mcaDetector.js`) always preferred
+"sum whatever I actually saw" over projecting the established rate, with
+cadence classified by a blunt hit-count threshold (`>=12` hits to count
+as "daily") instead of the date-gap-based `classifyFrequency` the
+transaction-based detector already uses successfully. Rebuilt it to match:
+track a date per hit (bank statement rows print `MM/DD` with no year --
+`U.parseDate` requires all three parts and silently returned null on
+every one, so dates are now extracted directly with a constant placeholder
+year, since only the *relative* spacing within one statement matters
+here), classify cadence from real date gaps via the existing
+`classifyFrequency`, and project the rate (`amount * 30` for daily, `*
+4.33` for weekly) whenever the observed dates span less than 20 days of
+the statement -- covering the "funder just started" and "page-limit
+truncated the read" cases alike. Once the observed dates already span
+most of a real month, the actual summed total is kept instead: a
+percentage-of-sales holdback (Shopify Capital) varies payment to payment,
+so a single projected "rate" would make Aaria Tees' already-correct
+$203.08/$938.78/$1,069.48 figures *worse*, not better -- confirmed by
+regression while building this (first pass without the "spans a full
+period" branch broke all three).
+
+**Second bug, found while chasing why the projection still wasn't taking
+for Forest Capital's February statement even after that rewrite**: a real
+$10,800 *incoming* wire ("WIRE TYPE:WIRE IN ... ORIG:1/FOREST CAPITAL
+GROUP LL ... PMT DET:B ... FOREST CAPITAL 10,800.00") was being counted as
+a Forest Capital *debit* hit, because `rawLineIsDebit`'s generic
+debit-keyword check (matching on "PMT", present in the wire's own
+reference fields) ran *before* its explicit wire-in exclusion check, so
+the wire-in signal was dead code whenever a wire's message details
+happened to also contain "pmt" -- common, since "PMT DET:" is a standard
+wire-message field. Reordered the exclusion check first. That stray hit
+carried no valid dollar amount (already excluded from `observedAmounts`)
+but its garbled reference text ("...MG OF 26/02/24...") still parsed as a
+date, corrupting the cadence-classification date range for the position's
+*other*, real hits -- so the date-trust was tightened to match the
+amount's: a hit that produced no valid dollar figure no longer contributes
+a date either, since a hit that untrustworthy for the amount is just as
+untrustworthy for the date.
+
+**Also audited, per request, why "984 LLC" and "Abbaspour INC" looked like
+they had duplicates in the export** (asked in chat, answered there, no
+code change needed): 984 LLC's two "FEB" statement rows are two genuinely
+different real half-month statement periods (`Biz 2026 Feb 1-Feb 16` /
+`Biz 2026 Feb 17-Feb 27`, this bank issues semi-monthly statements),
+correctly not OCR'd -- the short label just doesn't show the day range, so
+two real statements look identical at a glance. Abbaspour's address really
+does show twice because it has statements from two different banks
+(Farmers Bank prints `7320 E 82ND ST ... 46256-1458`, Indiana Members
+Credit Union prints `7320 E 82ND STREET ... 46256`) that format the same
+real address slightly differently, and all six of its statements are
+genuinely OCR'd (confirmed `usedOcr: true` on every one). Neither is a
+bug; both are flagged as small possible UX improvements (day-range in the
+short label; fuzzy address de-duplication) not yet built.
+
+Verified: `tsc`, full 516-test suite, and build all clean after each of
+the three edits in this entry (cadence/date rewrite, exclusion-order fix,
+date-trust guard), not just at the end. Real-browser runs against the
+actual `scan15test.zip` after every change: reconciliation stayed 0
+mismatches and 0 failed docs across all 61 documents throughout: Forest
+Capital now reads $10,792.80/mo in *both* Feb and March (previously
+$1,079.28 in Feb, a 10x understatement); every other repeat funder across
+multiple months in the batch (Kapitus, Viking Funding, FundX) now reads a
+stable, consistent burden across their own repeat statements too; Aaria
+Tees' Shopify Capital figures (a genuinely variable percentage-of-sales
+funder) are unchanged and still correct.
+
+**Still not pushed** -- GitHub access remains broken for this session; all
+three commits from this session (MCA $25 floor + address-match lead
+merge, toolbar redesign, and this entry's cadence-projection + wire-in-
+exclusion fixes) are sitting locally, ready to push once reconnected.

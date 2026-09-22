@@ -208,7 +208,11 @@ test('the lead list uses that same key rule', /companyName\.companyKey/.test(lea
 // characters never appears: company info also compares names, as printed
 // rather than by the grouping key, which is the difference worth showing.
 test('the lead list groups by the engine key and nothing else', /return getScannerEngine\(\)\.companyName\.companyKey\(name\)/.test(leadsLib) && /: normalized\(name\);/.test(leadsLib));
-test('no second grouping key is computed in the UI layer', (leadsLib.match(/groups\.set\(/g) || []).length === 1 && !/companyKey\(name\)\s*\+/.test(leadsLib));
+// mergeGroupsAtSameAddress legitimately calls groups.set() a second time -- to fold an
+// address-matched pair together, reusing the keys the one true grouping pass already
+// derived -- so the real guard is that `normalized(name)` (the key derivation itself)
+// is computed in exactly one place, not that groups.set() is called only once.
+test('no second grouping key is computed in the UI layer', (leadsLib.match(/normalized\(name\)/g) || []).length === 1 && !/companyKey\(name\)\s*\+/.test(leadsLib));
 test('company info compares names as printed, not by the grouping key', /const asPrinted = \(value: string\)/.test(leadsLib) && /compared as printed, not by grouping key/i.test(leadsLib));
 test('row reconstruction has one implementation', /export function rebuildRows/.test(pdfRows) && /rebuildRows/.test(vendor));
 test('rows are joined by measured gap, not blind spaces', /spaceThreshold/.test(pdfRows));

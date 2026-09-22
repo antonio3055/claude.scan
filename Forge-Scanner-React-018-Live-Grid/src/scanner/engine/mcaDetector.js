@@ -218,9 +218,14 @@
   function rawLineIsDebit(line,section,previousLine='',nextLine='') {
     const raw=String(line||''),context=[previousLine,raw,nextLine].join(' ');
     if (/(?:^|\s)-\s*\$?\s*\d[\d,]*\.\d{2}\b|\(\s*\$?\s*\d[\d,]*\.\d{2}\s*\)/.test(raw)) return true;
+    // An explicit incoming-wire/funding signal outranks an incidental keyword
+    // match later in the same line -- a wire message's own reference details
+    // routinely contain the word "PMT" (e.g. "PMT DET:") despite the wire
+    // itself being money coming IN, not a debit. Checked before the generic
+    // debit-keyword scan below so that word never overrides this.
+    if (/\b(?:wire\s+type\s*:\s*wire\s+in|loan\s+proceeds|funding)\b/i.test(context)) return false;
     if (/\b(?:ach\s+debit|debit|withdrawal|external\s+withdrawal|e\s+withdrawal|payment|pmt)\b/i.test(raw)) return true;
     if (/\b(?:deposit|credit|external\s+deposit|e\s+deposit)\b/i.test(raw)) return false;
-    if (/\b(?:wire\s+type\s*:\s*wire\s+in|loan\s+proceeds|funding)\b/i.test(context)) return false;
     return section !== 'credit';
   }
 
@@ -235,21 +240,58 @@
       const name=matchAlias(line);
       if(!name || isExcluded(line) || !passesCapitalOneSafeguard(line) || !rawLineIsDebit(line,section,lines[i-1]||'',lines[i+1]||'')) continue;
       const key=name;
-      hits[key]=hits[key]||{funder:name,amounts:[],count:0,evidence:line};
+      hits[key]=hits[key]||{funder:name,amounts:[],dates:[],count:0,evidence:line};
       const scrubbed=line
         .replace(/\b(?:DES|ID|TRACE|REF|Transaction)\s*[:#]?\s*[A-Z0-9-]+/gi,' ')
         .replace(/(?:\*{2,}|X{2,})\d+/gi,' ')
         .replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g,' ');
-      const vals=U.moneyVals(scrubbed).map(Math.abs).filter((v)=>v>=25&&v<=250000&&!(v>=2020&&v<=2030));
+      // A funder alias already matched this line and DES/ID/TRACE/REF/phone/masked-
+      // account noise is already scrubbed out above, so a high floor here does more
+      // harm than good: some real MCA holdbacks (e.g. a daily percentage-of-sales
+      // funder) are genuinely a few dollars. Only a near-zero/blank value is noise.
+      const vals=U.moneyVals(scrubbed).map(Math.abs).filter((v)=>v>=1&&v<=250000&&!(v>=2020&&v<=2030));
       const selected=vals.length?(vals.length>=2?vals[vals.length-2]:vals[0]):null;
       hits[key].count+=1;
       if(selected!=null) hits[key].amounts.push(selected);
+      // A bank statement's own transaction rows print "MM/DD", the year
+      // already established by the statement itself -- U.parseDate requires
+      // all three parts and returns null on those, which silently starved
+      // every hit of a date. Only the relative spacing between hits within
+      // this one statement matters here, so a constant placeholder year
+      // keeps that spacing correct without needing to infer the real one.
+      // Only trusted alongside a real parsed amount: a multi-line wire
+      // message can still slip a stray alias mention past rawLineIsDebit's
+      // single-line-of-context lookback, and its own reference numbers
+      // (a "DATE: 260224"-style field, not a transaction date) can look
+      // like a date -- exactly the same reason the amount is left out for
+      // a hit like that, and letting an untrustworthy hit contribute a wild
+      // date corrupts the cadence/span read for every real hit alongside it.
+      if(selected!=null){
+        const dateMatch=line.match(/\b(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?\b/);
+        if(dateMatch){
+          const mm=String(Math.min(12,Math.max(1,Number(dateMatch[1])))).padStart(2,'0');
+          const dd=String(Math.min(31,Math.max(1,Number(dateMatch[2])))).padStart(2,'0');
+          hits[key].dates.push(`2000-${mm}-${dd}`);
+        }
+      }
     }
     return Object.values(hits).map((hit)=>{
       const amount=hit.amounts.length?pickModeOrMedian(hit.amounts):0;
-      const cadence=hit.count>=12?'daily':hit.count>=2?'weekly':'monthly';
+      const cadence=classifyFrequency(hit.count,hit.dates);
+      const sortedDates=hit.dates.slice().sort();
+      const spanDays=sortedDates.length>=2?Math.round((new Date(sortedDates[sortedDates.length-1])-new Date(sortedDates[0]))/86400000):0;
       const observedTotal=round2(hit.amounts.reduce((a,b)=>a+b,0));
-      const monthly=observedTotal || round2(cadence==='daily'?amount*30:cadence==='weekly'?amount*4.33:amount);
+      const projected=round2(cadence==='daily'?amount*30:cadence==='weekly'?amount*4.33:amount);
+      // A short observed window -- the funder started partway through the
+      // statement, or a page cap truncated the read -- means the real total
+      // observed understates the recurring rate, so the established
+      // per-payment rate is projected across a full month instead. Once the
+      // observed dates already span most of a real month (>=20 days), the
+      // actual total is the more reliable number: a percentage-of-sales
+      // holdback (e.g. Shopify Capital) varies payment to payment, so no
+      // single projected "rate" represents it as well as what really moved.
+      const spansFullPeriod=spanDays>=20;
+      const monthly=spansFullPeriod?(observedTotal||projected):(projected||observedTotal);
       const verified=hit.funder.startsWith('Unidentified MCA')?hit.count>=2:true;
       return {
         funder:hit.funder,
@@ -257,8 +299,8 @@
         estimatedPaymentAmount:amount,
         observedAmounts:hit.amounts,
         cadence,
-        firstObservedPayment:null,
-        lastObservedPayment:null,
+        firstObservedPayment:sortedDates[0]||null,
+        lastObservedPayment:sortedDates[sortedDates.length-1]||null,
         numberOfObservedPayments:hit.count,
         estimatedMonthlyBurden:monthly,
         status:verified?'verified':'needs_review',

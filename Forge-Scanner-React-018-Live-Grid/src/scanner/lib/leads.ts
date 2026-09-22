@@ -47,6 +47,8 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
     groups.set(key, [...(groups.get(key) ?? []), doc]);
   });
 
+  mergeGroupsAtSameAddress(groups);
+
   const leads: ScannerLead[] = [];
   groups.forEach((docs, id) => {
     const application = docs.find((d) => d.docType === 'application');
@@ -73,6 +75,51 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
   flagPossibleSameBusiness(leads);
 
   return leads.sort((a, b) => b.revenue - a.revenue || b.extractionScore - a.extractionScore || a.companyName.localeCompare(b.companyName));
+}
+
+/** True once for docs that carry real financial evidence -- not a duplicate, not a month-to-date preview. */
+function isRealStatement(doc: ScannerDocument) {
+  return doc.docType === 'bank_statement' && !doc.duplicateOfFileId && !doc.isMtd;
+}
+
+/**
+ * Before grouping purely by company name, fold an application-only group and
+ * a statement-only group together when their addresses genuinely match --
+ * the strongest signal available that they are one real business banking
+ * under a different name than it applied under (a trading name, a rebrand,
+ * an old filing). This is the one signal solid enough to actually combine
+ * two groups into a single lead; every weaker case (name differs with no
+ * address match, or matching neither) stays a same-business *flag* only --
+ * see flagPossibleSameBusiness below, which runs after this and therefore
+ * never re-flags a pair this already merged.
+ */
+function mergeGroupsAtSameAddress(groups: Map<string, ScannerDocument[]>) {
+  const engine = getScannerEngine();
+  const appOnlyKeys = [...groups.entries()]
+    .filter(([, docs]) => docs.some((d) => d.docType === 'application') && !docs.some(isRealStatement))
+    .map(([key]) => key);
+  const stmtOnlyKeys = [...groups.entries()]
+    .filter(([, docs]) => !docs.some((d) => d.docType === 'application') && docs.some(isRealStatement))
+    .map(([key]) => key);
+
+  for (const appKey of appOnlyKeys) {
+    const appDocs = groups.get(appKey);
+    const applicationAddress = appDocs?.find((d) => d.docType === 'application')?.application?.address;
+    if (!applicationAddress) continue;
+
+    for (const stmtKey of stmtOnlyKeys) {
+      if (stmtKey === appKey) continue;
+      const stmtDocs = groups.get(stmtKey);
+      if (!stmtDocs) continue; // already folded into an earlier match
+      const addressMatches = stmtDocs.some(
+        (d) => isRealStatement(d) && engine.holderAddress.sameAddress(d.statementIdentity?.address, applicationAddress)
+      );
+      if (!addressMatches) continue;
+
+      groups.set(appKey, [...(groups.get(appKey) ?? []), ...stmtDocs]);
+      groups.delete(stmtKey);
+    }
+  }
 }
 
 /**
