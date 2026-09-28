@@ -68,7 +68,16 @@ export function AuditTable({ documents }: Props) {
     ? documents.filter((d) => d.processingStatus === 'failed' || d.processingStatus === 'needs_review' || d.processingStatus === 'skipped' || d.duplicateOfFileId)
     : documents;
 
-  const gridTemplateColumns = [`${NUM_WIDTH}px`, ...reorder.order.map((key) => `${cols.widths[key] ?? 140}px`)].join(' ');
+  // The last column fills whatever width is left instead of a fixed pixel
+  // size, so the table spreads across the full available width -- no
+  // horizontal scroll just to see every column on a normal screen.
+  const gridTemplateColumns = [
+    `${NUM_WIDTH}px`,
+    ...reorder.order.map((key, i) => {
+      const width = cols.widths[key] ?? 140;
+      return i === reorder.order.length - 1 ? `minmax(${width}px, 1fr)` : `${width}px`;
+    })
+  ].join(' ');
 
   const cellFor = (doc: ScannerDocument, key: string): { node: ReactNode; num?: boolean; title?: string } => {
     switch (key) {

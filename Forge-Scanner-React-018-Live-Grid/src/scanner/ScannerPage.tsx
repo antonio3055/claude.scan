@@ -74,9 +74,7 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
         onClearCompleted={() => void scanner.clearCompleted()}
         onOpenOcrFiles={() => setOcrFilesOpen(true)}
         onOpenSend={() => setSendOpen(true)}
-        onClearStorage={() => {
-          void scanner.clearStorage().then(() => setStorageEpoch((n) => n + 1));
-        }}
+        onClearStorage={() => scanner.clearStorage().then(() => setStorageEpoch((n) => n + 1))}
         storageEpoch={storageEpoch}
         readyToSend={readyToSend}
       />

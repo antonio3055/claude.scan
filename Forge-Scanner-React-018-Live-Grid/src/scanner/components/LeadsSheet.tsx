@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { ScannerLead } from '../types/scanner';
-import { displayList, displayValue, money, shortDocLabel } from '../lib/format';
+import { bankAccountEntries, displayList, displayValue, money, shortDocLabel } from '../lib/format';
 import { potentialApproval, roundDisplayAmount } from '../lib/displayRules';
 import { auditSummary } from '../lib/leads';
 import { useResizableColumns } from '../hooks/useResizableColumns';
@@ -77,8 +77,11 @@ function statementText(lead: ScannerLead) {
 }
 
 function bankText(lead: ScannerLead) {
-  const banks = [...new Set(lead.statements.map((d) => d.bankAccount?.bank).filter(Boolean))] as string[];
-  return displayList(banks, lead.statements).join(' • ');
+  // " • " already separates a bank name from its own account number within
+  // one entry (bankAccountEntries) -- multiple distinct bank+account pairs
+  // are joined with " · " instead, same convention as statements/MCA below,
+  // so the two separators never mean two different things back to back.
+  return displayList(bankAccountEntries(lead), lead.statements).join(' · ');
 }
 
 function mcaText(lead: ScannerLead) {

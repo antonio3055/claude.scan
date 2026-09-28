@@ -90,6 +90,11 @@
 .toolbar-action-btn:disabled { opacity: 0.5; cursor: default; }
 .toolbar-action-btn svg { width: 13px; height: 13px; flex: 0 0 13px; }
 .toolbar-action-btn b { margin-left: auto; font-size: 9.5px; color: var(--muted); font-weight: 700; }
+/* Instant, unmissable confirmation that a click registered -- worker
+   cold-start (loading the OCR engine) can take several real seconds with
+   no other visible change yet. */
+.toolbar-action-btn.starting { background: var(--accent-soft-strong); border-color: var(--accent); color: var(--accent-strong); animation: starting-pulse 1s ease-in-out infinite; }
+@keyframes starting-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
 .icon-control {
   width: 30px; height: 30px; border: 0; border-radius: 8px; display: grid; place-items: center;
@@ -234,6 +239,13 @@
 .audit-table-toggle strong { font-size: 13px; font-weight: 800; }
 .audit-table-toggle small { margin-left: 8px; color: var(--muted); font-weight: 400; }
 .audit-table-body { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+/* The shared .sheet-row sizes itself to content (width: max-content), built
+   for the leads sheet's many fixed-width columns that intentionally scroll.
+   The audit table has far fewer columns and should fill the available
+   width instead -- overriding to 100% lets its last column's minmax(…,1fr)
+   track actually absorb the remaining space rather than growing to fit
+   the widest cell's unwrapped text. */
+.audit-table-body .sheet-row { width: 100%; }
 .audit-table-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--line); font-size: 11px; }
 .audit-table-actions label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .row-duplicate .sheet-cell { background: #fdf6ee; }
