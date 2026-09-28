@@ -31,8 +31,14 @@ function yieldToBrowser() {
  * whole archive takes.
  */
 export async function extractPdfsFromZip(
-  zipFile: File,
-  onProgress?: (found: number, scanned: number, total: number) => void
+  zipFile: Blob,
+  onProgress?: (found: number, scanned: number, total: number) => void,
+  // Where a zip found inside another zip sat, so its PDFs land in that same
+  // folder -- next to the company's other files -- rather than on their own.
+  pathPrefix = '',
+  // One level of zip-in-a-zip, as CRM submissions arrive; never deeper, so a
+  // hostile archive cannot recurse without end.
+  depth = 0
 ): Promise<ZipExtractResult> {
   const JSZip = (await import('jszip')).default;
   const zip = await JSZip.loadAsync(zipFile);
@@ -46,11 +52,21 @@ export async function extractPdfsFromZip(
   for (let i = 0; i < entries.length; i += 1) {
     const [relativePath, entry] = entries[i];
     if (!entry.dir && !JUNK.test(relativePath)) {
+      const path = `${pathPrefix}${relativePath.replace(/\\/g, '/')}`;
       const base = relativePath.split('/').pop() ?? relativePath;
       if (!base.startsWith('.')) {
         if (base.toLowerCase().endsWith('.pdf')) {
           const blob = await entry.async('blob');
-          pdfs.push(new File([blob], relativePath.replace(/\\/g, '/'), { type: 'application/pdf' }));
+          pdfs.push(new File([blob], path, { type: 'application/pdf' }));
+        } else if (base.toLowerCase().endsWith('.zip') && depth === 0) {
+          try {
+            const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+            const inner = await extractPdfsFromZip(await entry.async('blob'), undefined, folder, depth + 1);
+            pdfs.push(...inner.pdfs);
+            skipped.push(...inner.skipped);
+          } catch {
+            skipped.push(base);
+          }
         } else {
           skipped.push(base);
         }

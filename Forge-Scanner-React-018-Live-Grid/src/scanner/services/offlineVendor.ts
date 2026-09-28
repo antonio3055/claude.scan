@@ -49,6 +49,8 @@ interface PdfLoadingTask {
 
 export interface PdfExtractResult {
   fullText: string;
+  /** The same pages with near baselines joined into one line: how a form's answers pair with their labels. */
+  formText: string;
   pageTexts: string[];
   pageCount: number;
   scannedPageCount: number;
@@ -307,6 +309,7 @@ export async function extractPdfText(
     const scanCount = Math.max(1, Math.min(doc.numPages, pageLimit));
     const pageTexts: string[] = [];
     let fullText = '';
+    let formText = '';
 
     // An OCR scan reads the pages as images, so reading the text layer first
     // only to discard it is work for nothing. The document itself is still
@@ -317,22 +320,26 @@ export async function extractPdfText(
       await controls.waitIfPaused?.();
       controls.token.throwIfCancelled();
 
-      const pageText = await withWatchdog(
+      const { pageText, pageFormText } = await withWatchdog(
         `PDF page ${pageNumber}`,
         SCAN_TIMEOUTS.pdfPageMs,
         async () => {
           const page = await doc.getPage(pageNumber);
           const content = await page.getTextContent();
-          return rebuildRows(content.items as Array<any>);
+          return {
+            pageText: rebuildRows(content.items as Array<any>),
+            pageFormText: rebuildRows(content.items as Array<any>, { mergeNearRows: true })
+          };
         },
         { token: controls.token, abort: abortDocument }
       );
 
       pageTexts.push(pageText);
       fullText += pageText;
+      formText += pageFormText;
     }
 
-    return { fullText, pageTexts, pageCount: doc.numPages, scannedPageCount: scanCount, doc };
+    return { fullText, formText, pageTexts, pageCount: doc.numPages, scannedPageCount: scanCount, doc };
   } catch (error) {
     await abortDocument();
     throw asPdfError(error);

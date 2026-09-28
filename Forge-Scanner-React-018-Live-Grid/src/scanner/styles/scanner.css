@@ -328,3 +328,10 @@
 .storage-panel button { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 10.5px; font-weight: 650; cursor: pointer; white-space: nowrap; }
 .storage-panel button:hover { background: var(--accent-soft); border-color: var(--accent); }
 .storage-panel button:disabled { opacity: 0.6; cursor: default; }
+
+/* Scan Audit result: judged on what was extracted, not on processing status. */
+.grid-badge.verdict-good { background: var(--good-soft); color: var(--good); }
+.grid-badge.verdict-partial { background: var(--warn-soft); color: var(--warn); }
+.grid-badge.verdict-bad { background: var(--bad-soft); color: var(--bad); }
+.grid-badge.verdict-excluded { background: var(--surface-soft); color: var(--dim); }
+.audit-verdict-counts { display: flex; gap: 6px; margin-left: auto; }

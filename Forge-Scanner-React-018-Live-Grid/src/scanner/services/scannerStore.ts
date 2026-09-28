@@ -78,7 +78,40 @@ export const scannerStore = {
   async clearAll() {
     await Promise.all([
       withStore(DOCS, 'readwrite', (store) => store.clear()),
-      withStore(FILES, 'readwrite', (store) => store.clear())
+      withStore(FILES, 'readwrite', (store) => store.clear()),
+      clearOcrLanguageCache()
     ]);
   }
 };
+
+// Tesseract.js keeps its unpacked English language data (~15 MB) in its own
+// IndexedDB database the first time OCR runs, outside this scanner's store --
+// so "Clear cache" never touched it and the byte count could not go below it.
+// Emptied here too; the next OCR run reloads it from the bundled copy.
+const OCR_CACHE_DB = 'keyval-store';
+const OCR_CACHE_STORE = 'keyval';
+
+async function clearOcrLanguageCache() {
+  // Opening a database that does not exist would create an empty one without
+  // the store Tesseract expects and break its cache, so only an existing one
+  // is touched -- and only where the browser can say which exist.
+  if (typeof indexedDB.databases !== 'function') return;
+  const existing = await indexedDB.databases().catch(() => []);
+  if (!existing.some((db) => db.name === OCR_CACHE_DB)) return;
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.open(OCR_CACHE_DB);
+    request.onerror = () => resolve();
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(OCR_CACHE_STORE)) {
+        db.close();
+        resolve();
+        return;
+      }
+      const tx = db.transaction(OCR_CACHE_STORE, 'readwrite');
+      tx.objectStore(OCR_CACHE_STORE).clear();
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); resolve(); };
+    };
+  });
+}

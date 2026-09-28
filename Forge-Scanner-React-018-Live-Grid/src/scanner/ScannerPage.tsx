@@ -99,7 +99,7 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
             title="Drag to resize"
           />
         </div>
-        <AuditTable documents={scanner.documents} />
+        <AuditTable documents={scanner.documents} leads={leads} />
       </div>
 
       {ocrFilesOpen && <OcrFilesModal documents={scanner.documents} onClose={() => setOcrFilesOpen(false)} />}

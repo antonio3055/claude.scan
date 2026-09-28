@@ -17,6 +17,7 @@
   /**
    * @param {{
    *   fileId:string, filename:string, rawText:string, usedOcr:boolean,
+   *   formText?:string,
    *   needsOcr?:boolean,
    *   pageCount?:number, scannedPageCount?:number,
    *   statedOpeningBalance?:number, statedEndingBalance?:number,
@@ -28,25 +29,49 @@
     const text = input.rawText || '';
 
     const docType = E.textQuality.classifyDocument(text);
+    const contactSheet = docType !== 'bank_statement' && E.textQuality.isContactSheet(text);
 
-    if (docType === 'application') {
+    if (docType === 'application' || contactSheet) {
       // An application is judged on application wording, not on statement
-      // wording it was never going to contain.
-      const quality = E.textQuality.assessTextQuality(text, { docType });
-      const appFields = E.applicationExtractor.extractApplicationFields(text, { filename: input.filename });
+      // wording it was never going to contain. A contact sheet is judged on
+      // the phones and emails it is made of.
+      // Read from the form layout of the page where there is one: its answers
+      // sit a little off their labels' baselines, and only that text keeps
+      // each answer on its label's line.
+      const appFields = E.applicationExtractor.extractApplicationFields(input.formText || text, { filename: input.filename });
+      const quality = contactSheet
+        ? { trusted: true, signalsFound: [], charCount: text.replace(/\s+/g, '').length, reason: 'contact_sheet' }
+        : E.textQuality.assessTextQuality(text, { docType: 'application' });
+      // A form whose text layer is only its printed labels -- the answers were
+      // typed onto the page image, or printed in a block apart from their
+      // labels -- reads as text but yields none of the answers the form
+      // itself asks for. Phones, emails and tax IDs are no evidence either
+      // way: they are found anywhere, broker footers included. OCR reads the
+      // page as it is laid out, answers beside their labels.
+      const IDENTITY = ['Company', 'Owner', 'Start date', 'Address'];
+      const identityFound = E.applicationExtractor
+        .applicationFieldChecks(appFields)
+        .some((check) => IDENTITY.includes(check.field) && check.found);
+      const needsOcr = !input.usedOcr && !contactSheet && !identityFound;
       const appHolder = E.companyName.extractCompanyName(text, { bank: null });
+      const fromForm = appFields.legalNameSource === 'form' || Boolean(appFields.dba);
+      const reviewItems = [];
+      if (needsOcr) reviewItems.push({ type: 'needs_ocr', reason: 'application_answers_not_in_text' });
+      if (!quality.trusted) reviewItems.push({ type: 'low_text_quality', reason: quality.reason });
       return {
         scanId: input.fileId,
-        status: quality.trusted ? 'complete' : 'needs_review',
+        status: reviewItems.length ? 'needs_review' : 'complete',
         docType: 'application',
+        applicationKind: contactSheet ? 'contact_sheet' : 'form',
         sourceFile: { fileId: input.fileId, filename: input.filename },
         textQuality: quality,
+        needsOcr,
         application: appFields,
         companyNameGuess: appFields.legalName || appFields.dba || appHolder.legalName || appHolder.dba || null,
-        companyNameEvidence: appFields.legalName || appFields.dba ? 'application_form' : appHolder.evidence,
+        companyNameEvidence: fromForm ? 'application_form' : appFields.legalName ? 'filename' : appHolder.evidence,
         dbaNameGuess: appFields.dba || appHolder.dba || null,
         confidence: { level: quality.trusted ? 'medium' : 'low', reasons: quality.trusted ? [] : [quality.reason] },
-        reviewItems: quality.trusted ? [] : [{ type: 'low_text_quality', reason: quality.reason }],
+        reviewItems,
       };
     }
 

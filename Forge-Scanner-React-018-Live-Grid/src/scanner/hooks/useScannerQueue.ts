@@ -176,6 +176,7 @@ export function useScannerQueue() {
       controls.token.throwIfCancelled();
 
       let rawText = '';
+      let formText = '';
       let usedOcr = false;
       let needsOcr = false;
       let pageCount = 1;
@@ -211,6 +212,7 @@ export function useScannerQueue() {
             stamp('ocr_completed');
           } else {
             rawText = native.fullText;
+            formText = native.formText;
             // A PDF with no usable text layer is a scan of paper. So is one
             // whose text layer carries no printed amount: some banks emit a
             // layer of nothing but structural markers, which is a page count
@@ -246,12 +248,20 @@ export function useScannerQueue() {
         fileId: doc.fileId,
         filename: file.name,
         rawText,
+        formText,
         usedOcr,
         needsOcr,
         pageCount,
         scannedPageCount
       }) as ScannerDocument;
       stamp('results_validated');
+      // An application decides for itself: the "no printed amount" rule above
+      // is a statement's, and a perfectly readable application has no dollar
+      // figure on it. It needs OCR when none of its answers are in its text.
+      if (result.docType === 'application') {
+        needsOcr = Boolean(result.needsOcr);
+        if (needsOcr) stamp('needs_ocr_application_answers_not_in_text');
+      }
 
       const finalDoc: ScannerDocument = {
         ...doc,

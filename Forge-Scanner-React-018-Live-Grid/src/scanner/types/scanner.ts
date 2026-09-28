@@ -76,8 +76,12 @@ export interface ScannerDocument {
   isMtd?: boolean;
   statementPeriod?: { start?: string | null; end?: string | null } | null;
   confidence?: { level?: string; reasons?: string[]; points?: number; maxPoints?: number };
+  /** For an application: a filled-in form, or a sheet of nothing but phones and emails. */
+  applicationKind?: 'form' | 'contact_sheet';
   application?: {
     legalName?: string | null;
+    /** 'form' when printed against a name label; 'filename' when only the file's name offered one. */
+    legalNameSource?: 'form' | 'filename' | null;
     dba?: string | null;
     fullName?: string | null;
     address?: string | null;

@@ -67,7 +67,7 @@ export function StoragePanel({ onClear, epoch }: { onClear: () => Promise<void>;
       <span className="storage-label">Cache</span>
       <span
         className="storage-value"
-        title="Real usage reported by the browser's own Storage API -- but right after a clear this number is not trustworthy: deleting IndexedDB records can make it go UP before it goes down, since the browser writes the deletion itself before reclaiming space in the background. Every document and file record is gone immediately regardless of what this number shows; a second Clear click has nothing left to do."
+        title="Real usage reported by the browser's own Storage API -- but right after a clear this number is not trustworthy: deleting IndexedDB records can make it go UP before it goes down, since the browser writes the deletion itself before reclaiming space in the background. Every document, original file and the OCR engine's cached language data is gone immediately regardless of what this number shows -- the browser typically frees the disk space itself after a restart. A second Clear click has nothing left to do."
       >
         {supported ? (bytes == null ? 'Checking…' : formatBytes(bytes)) : 'n/a'}
       </span>

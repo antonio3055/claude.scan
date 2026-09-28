@@ -50,7 +50,75 @@
     'merchant application',
     'funding application',
     'existing business loan',
+    // Wording from the many other application forms brokers send, not just
+    // one: each seen on real applications that were otherwise misread as
+    // statements.
+    'business legal name',
+    'legal business name',
+    'business name',
+    'company name',
+    'legal/corporate name',
+    'doing business as',
+    'federal tax id',
+    'tax id',
+    'social security',
+    'birth date',
+    'percent ownership',
+    '% of ownership',
+    'ownership %',
+    'credit score',
+    'fico score',
+    'owner information',
+    'owner details',
+    'principal information',
+    'business information',
+    'business details',
+    'home address',
+    'state of incorporation',
+    'type of entity',
+    'entity type',
+    'legal structure',
+    'amount requested',
+    'loan amount',
+    'funding amount',
+    'gross annual sales',
+    'annual revenue',
+    'monthly sales',
   ];
+
+  /**
+   * Application wording counted as whole phrases: "tax id" is evidence,
+   * "syntax identifier" is not.
+   */
+  function applicationPhrasesIn(text) {
+    return APPLICATION_SIGNAL_PHRASES.filter((phrase) => {
+      const escaped = phrase.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+      return new RegExp(`(?:^|[^a-z0-9])${escaped}(?![a-z0-9])`).test(text);
+    });
+  }
+
+  const PHONE_LINE = /^(?:\+?1[\s.\-]?)?\(?[2-9]\d{2}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}$/;
+  const EMAIL_LINE = /^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/i;
+  const CONTACT_LABEL_LINE = /^(?:mobile|cell|residential|landline|home|work|business|phone|phones|email|emails|e-mail|other)$/i;
+
+  /**
+   * A list of phone numbers and email addresses and nothing else -- the
+   * contact sheet some brokers file as "APP.pdf" alongside, or instead of,
+   * the application itself. No application form fields, but real contact
+   * details worth keeping.
+   */
+  function isContactSheet(rawText) {
+    const lines = String(rawText || '').split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    let data = 0;
+    let labels = 0;
+    for (const line of lines) {
+      const tokens = line.split(/\s+/);
+      if (tokens.every((token) => PHONE_LINE.test(token) || EMAIL_LINE.test(token))) data += 1;
+      else if (PHONE_LINE.test(line)) data += 1;
+      else if (CONTACT_LABEL_LINE.test(line)) labels += 1;
+    }
+    return data >= 2 && (data + labels) / lines.length >= 0.8;
+  }
 
   /**
    * Is the extracted text good enough to parse directly?
@@ -71,9 +139,9 @@
     const text = (rawText || '').toLowerCase();
     const charCount = text.replace(/\s+/g, '').length;
     const isApplication = options?.docType === 'application';
-    const phrases = isApplication ? APPLICATION_SIGNAL_PHRASES : STATEMENT_SIGNAL_PHRASES;
-
-    const signalsFound = phrases.filter((p) => text.includes(p));
+    const signalsFound = isApplication
+      ? applicationPhrasesIn(text)
+      : STATEMENT_SIGNAL_PHRASES.filter((p) => text.includes(p));
 
     // DocuSign / cover-page detector: lots of boilerplate, no content signal.
     const looksLikeEnvelopeOnly =
@@ -106,7 +174,7 @@
   function classifyDocument(rawText) {
     const text = (rawText || '').toLowerCase();
     const bankSignals = STATEMENT_SIGNAL_PHRASES.filter((p) => text.includes(p)).length;
-    const appSignals = APPLICATION_SIGNAL_PHRASES.filter((p) => text.includes(p)).length;
+    const appSignals = applicationPhrasesIn(text).length;
 
     if (bankSignals >= MIN_SIGNALS && bankSignals >= appSignals) return 'bank_statement';
     if (appSignals >= MIN_SIGNALS) return 'application';
@@ -121,6 +189,8 @@
   const api = {
     assessTextQuality,
     classifyDocument,
+    isContactSheet,
+    applicationPhrasesIn,
     STATEMENT_SIGNAL_PHRASES,
     APPLICATION_SIGNAL_PHRASES,
     MIN_SIGNALS,

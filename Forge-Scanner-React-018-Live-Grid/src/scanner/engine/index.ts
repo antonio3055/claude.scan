@@ -38,6 +38,10 @@ type EngineApi = {
   companyAggregator: {
     aggregateByCompany(docs: Array<Record<string, unknown>>): Array<Record<string, unknown>>;
   };
+  applicationExtractor: {
+    /** Each answer an application is read for, found or not. */
+    applicationFieldChecks(fields: unknown): Array<{ field: string; found: boolean }>;
+  };
   holderAddress: {
     extractHolderAddress(
       text: string,

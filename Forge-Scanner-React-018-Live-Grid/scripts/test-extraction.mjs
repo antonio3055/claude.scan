@@ -383,6 +383,27 @@ await reporter.check('rows are ordered top to bottom and columns left to right',
   assert.equal(rebuildRows([...bottom, ...top]).trim(), 'Account Statement\nEnding balance');
 });
 
+await reporter.check('a form answer printed a fraction of a unit off its label joins its line in form layout only', async () => {
+  // Measured on a real application: label at 670.416, answer at 671.169 --
+  // neighbouring 2-unit buckets, so the answer split off above its label.
+  const label = layOut(['Legal', { text: 'Business', gap: 4 }, { text: 'Name', gap: 4 }], { y: 670.416 });
+  const answer = layOut([{ text: 'DIMAS', gap: 0 }, { text: 'TOWER', gap: 4 }, { text: 'INC.', gap: 4 }], { y: 671.169 }).map((item) => ({
+    ...item,
+    transform: [...item.transform.slice(0, 4), item.transform[4] + 200, item.transform[5]]
+  }));
+  const below = layOut(['DBA'], { y: 642.571 });
+  const items = [...answer, ...below, ...label];
+  assert.equal(rebuildRows(items, { mergeNearRows: true }).trim(), 'Legal Business Name DIMAS TOWER INC.\nDBA');
+  // Statements keep exactly the rows they always had.
+  assert.equal(rebuildRows(items).trim(), 'DIMAS TOWER INC.\nLegal Business Name\nDBA');
+});
+
+await reporter.check('form layout does not join lines a real line apart', async () => {
+  const top = layOut(['Business', { text: 'Address', gap: 4 }], { y: 614.727 });
+  const next = layOut(['FLORAL', { text: 'PARK', gap: 4 }], { y: 603.438 });
+  assert.equal(rebuildRows([...next, ...top], { mergeNearRows: true }).trim(), 'Business Address\nFLORAL PARK');
+});
+
 await reporter.check('the space threshold scales with the glyph size', async () => {
   assert.ok(spaceThreshold(10) > 0);
   assert.ok(spaceThreshold(20) > spaceThreshold(10));
@@ -695,6 +716,87 @@ await reporter.check('a transaction row dated with a month name is rejected too'
 await reporter.check('a holder block is still read when it follows a date-like row', async () => {
   const text = ['Statement Dates 12/01/25 thru 12/31/25', 'ACME WIDGETS LLC', '100 MAIN ST', 'AUSTIN TX 78753'].join('\n');
   assert.equal(E.companyName.extractCompanyName(text, { bank: null }).legalName, 'ACME WIDGETS LLC');
+});
+
+/* ---------------------------------------------------------------- *
+ * Application forms beyond the one template the reader began with
+ * (shapes taken from real broker forms; names and numbers invented)
+ * ---------------------------------------------------------------- */
+
+const readApp = (text, filename = 'batch/Acme Widgets LLC 02_11_2026/APP.pdf') =>
+  E.pipeline.processDocument({ fileId: 'f', filename, rawText: text, usedOcr: false });
+
+await reporter.check('an unlabelled-colon form is read: company, owner, start date', async () => {
+  const doc = readApp([
+    'Business Information',
+    'Business Legal Name   Acme Widgets LLC',
+    'Legal Entity Type   Limited Liability Company',
+    'Business Start Date   Monday, May 1, 2023',
+    'Federal Tax ID (EIN)   92-0000001',
+    'Owner/Principle Information - Owner 1:',
+    'Full Legal Name   Jane Q Sample',
+    'Date of Birth   Saturday, November 8, 1975',
+    'Mobile',
+    '555-201-0001',
+    'JANE@EXAMPLE.COM'
+  ].join('\n'));
+  assert.equal(doc.docType, 'application');
+  assert.equal(doc.application.legalName, 'Acme Widgets LLC');
+  assert.equal(doc.application.legalNameSource, 'form');
+  assert.equal(doc.application.fullName, 'Jane Q Sample');
+  assert.equal(doc.application.businessStartDate, '05/01/2023');
+  assert.equal(doc.needsOcr, false, 'a readable application must not be sent to OCR');
+});
+
+await reporter.check('an answer on the line under its label is read', async () => {
+  const doc = readApp(['Business Information', 'Legal Business Name', 'ACME WIDGETS CORP', 'Business Start Date', '2021-03-15', 'Primary Owner Information', 'Name', 'Jane Sample', 'Date of Birth', '1970-05-06'].join('\n'));
+  assert.equal(doc.application.legalName, 'ACME WIDGETS CORP');
+  assert.equal(doc.application.fullName, 'Jane Sample');
+  assert.equal(doc.application.businessStartDate, '03/15/2021');
+});
+
+await reporter.check('the next label is never read as an answer', async () => {
+  const doc = readApp([
+    'General Business Information',
+    'Business Legal Name:   Doing Business As:',
+    'Legal Entity:   LLC   Corp   Sole Prop   Federal Tax ID (EIN):',
+    'Business Address:   City:   State:   Zip Code:',
+    'Owner / Principal Information',
+    'Full Name:   Ownership Percentage:',
+    'Date of Birth:   Social Security Number:'
+  ].join('\n'));
+  assert.equal(doc.docType, 'application');
+  assert.equal(doc.application.legalName, null, `read a label as the company: ${doc.application.legalName}`);
+  assert.equal(doc.application.fullName, null, `read a label as the owner: ${doc.application.fullName}`);
+  assert.equal(doc.application.address, null, `read labels as an address: ${doc.application.address}`);
+  assert.equal(doc.needsOcr, true, 'a labels-only form needs OCR to read its answers');
+});
+
+await reporter.check('a two-column form still reads the first owner (regression: scan15test layout)', async () => {
+  const doc = readApp(['Company Information', 'Legal Company Name: Acme Widgets LLC', 'Business Owner Information(1)   Business Owner Information(2)', 'Full Name:   Jane Sample   Full Name:', '% Ownership:   % Ownership:', 'Date of Birth: 1970-05-06', 'Business Start Date: 2023-04-28 0:00:00 Business Telephone#: 5552010001'].join('\n'));
+  assert.equal(doc.application.fullName, 'Jane Sample');
+  assert.equal(doc.application.businessStartDate, '04/28/2023');
+});
+
+await reporter.check('a generic filename is never taken as the company name', async () => {
+  assert.equal(E.applicationExtractor.companyFromFilename('batch/Acme 02_11_2026/APP.pdf'), '');
+  assert.equal(E.applicationExtractor.companyFromFilename('batch/x/APP 2.pdf'), '');
+  // Month words are stripped as whole words only: "Marquetta" keeps its "Mar".
+  assert.equal(E.applicationExtractor.companyFromFilename('batch/x/c5d3-Marquetta Jones.pdf'), 'Marquetta Jones');
+});
+
+await reporter.check('a phone-and-email list is a contact sheet, not a statement', async () => {
+  const doc = readApp(['MOBILE', '555-201-0001', '555-201-0002', 'RESIDENTIAL', '555-201-0003', 'EMAIL', 'JANE@EXAMPLE.COM', 'JANE.S@EXAMPLE.NET'].join('\n'));
+  assert.equal(doc.docType, 'application');
+  assert.equal(doc.applicationKind, 'contact_sheet');
+  assert.equal(doc.application.phones.length, 3);
+  assert.equal(doc.application.emails.length, 2);
+  assert.equal(doc.needsOcr, false);
+});
+
+await reporter.check('a label-only form with an entity checkbox list is not read as "LP Corp"', async () => {
+  const doc = readApp(['Business Information', 'Business Legal Name:   State of Incorporation:   Type of Business Entity (check one):', 'LP Corp', 'LLP LLC', 'Partnership   Sole Prop', 'Business Start Date:   Use of Proceeds:', 'Social Security:', 'Date of Birth:'].join('\n'));
+  assert.equal(doc.application.legalName, null, `read a checkbox list as the company: ${doc.application.legalName}`);
 });
 
 reporter.done();

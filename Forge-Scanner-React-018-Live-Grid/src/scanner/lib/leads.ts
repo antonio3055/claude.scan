@@ -37,28 +37,145 @@ function leadScore(application: ScannerDocument | undefined, statementDocs: Scan
   return Math.round(statementScore * 0.7 + applicationScore * 0.3);
 }
 
+/** The folder a file sat in inside an uploaded zip, or null for a file dropped on its own. */
+export function folderOfFilename(filename: string): string | null {
+  const parts = String(filename || '').split('/').map((part) => part.trim()).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 2] : null;
+}
+
+/** The date stamp CRM exports put on the end of each company's folder ("Acme LLC 02_11_2026"). */
+const FOLDER_DATE_STAMP = /[\s_-]*\d{1,2}[_.-]\d{1,2}[_.-]\d{2,4}\s*$/;
+
+/** A folder's name read as a company's, without the CRM's date stamp. */
+export function companyFromFolder(folder: string | null): string | null {
+  if (!folder) return null;
+  const name = folder
+    .replace(FOLDER_DATE_STAMP, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /[A-Za-z]{3}/.test(name) ? name : null;
+}
+
+const GENERIC_NAME_WORDS = new Set([
+  'llc', 'inc', 'corp', 'co', 'company', 'the', 'and', 'of', 'group', 'service', 'ltd', 'pc', 'llp', 'lp', 'dba',
+  'incorporated', 'corporation', 'limited', 'partnership', 'enterprise', 'holding'
+]);
+function significantWords(name: string) {
+  return normalized(name).split(' ').filter((word) => word.length >= 3 && !GENERIC_NAME_WORDS.has(word));
+}
+/** Two names share a distinctive word: "ATP DIRECT INC." and "ATP DIRECT INC 02_11_2026". */
+function namesOverlap(a: string, b: string) {
+  const other = new Set(significantWords(b));
+  return significantWords(a).some((word) => other.has(word));
+}
+
+/** The names a document itself reads as belonging to -- never one guessed from its filename. */
+function readNames(doc: ScannerDocument): string[] {
+  if (doc.docType === 'application') {
+    const app = doc.application;
+    return [app?.legalNameSource === 'form' ? app.legalName : null, app?.dba].filter(Boolean) as string[];
+  }
+  return [doc.statementIdentity?.name, doc.statementIdentity?.dba, doc.companyNameGuess].filter(Boolean) as string[];
+}
+
+/**
+ * Folders that hold one company's files each, as CRM exports lay them out
+ * ("ATP DIRECT INC 02_11_2026/APP.pdf", ".../1.pdf", ".../11.pdf"). Grouping
+ * by those is far stronger than by the name read from each PDF: an
+ * application form nobody could read a name from still belongs with the
+ * statements beside it, instead of every unreadable "APP.pdf" collapsing into
+ * one fake company called "APP".
+ *
+ * A folder only counts when it plainly is a company's: there must be more
+ * than one folder in play (one folder around everything is just the batch),
+ * and it must not hold several different companies none of which is the
+ * folder's own -- a "January" folder of three companies' statements is not
+ * one company. A single stray name is not enough to say so: name reading
+ * can pick up a bank's footer ("subsidiary of Huntington Bancshares Inc.").
+ */
+function companyFolders(documents: ScannerDocument[]) {
+  const byFolder = new Map<string, ScannerDocument[]>();
+  documents.forEach((doc) => {
+    const folder = folderOfFilename(doc.filename);
+    if (folder) byFolder.set(folder, [...(byFolder.get(folder) ?? []), doc]);
+  });
+  const companies = new Map<string, string>();
+  if (byFolder.size < 2) return companies;
+  byFolder.forEach((docs, folder) => {
+    const company = companyFromFolder(folder);
+    if (!company) return;
+    const names = docs.flatMap(readNames);
+    const otherCompanies = new Set(names.filter((name) => !namesOverlap(name, company)).map(normalized));
+    if (otherCompanies.size >= 2 && !names.some((name) => namesOverlap(name, company))) return;
+    companies.set(folder, company);
+  });
+  return companies;
+}
+
+/** Best-read application first: a filled-in form over a contact sheet or an unread one. */
+function applicationRank(doc: ScannerDocument) {
+  const found = getScannerEngine().applicationExtractor.applicationFieldChecks(doc.application).filter((c) => c.found).length;
+  return (doc.applicationKind === 'contact_sheet' ? 0 : 100) + found;
+}
+
+/**
+ * One application for the lead, with every phone and email any of its
+ * application documents carried: a folder can hold the form and a separate
+ * contact sheet, and the sheet's numbers are worth having next to the form's.
+ */
+function leadApplication(docs: ScannerDocument[]): ScannerDocument | undefined {
+  const apps = docs.filter((d) => d.docType === 'application' && !d.duplicateOfFileId);
+  if (!apps.length) return docs.find((d) => d.docType === 'application');
+  const [best, ...rest] = apps.slice().sort((a, b) => applicationRank(b) - applicationRank(a));
+  if (!rest.length || !best.application) return best;
+  const phones = distinct(apps.flatMap((d) => d.application?.phones ?? []));
+  const emails = distinct(apps.flatMap((d) => d.application?.emails ?? []));
+  return { ...best, application: { ...best.application, phones, emails } };
+}
+
+/**
+ * The lead's name: a name its own files read that agrees with its folder.
+ * Failing that, a CRM-stamped folder is the company's own name and beats a
+ * stray read (a bank footer); a plain folder ("January") is only a fallback.
+ */
+function leadName(docs: ScannerDocument[], application: ScannerDocument | undefined, folder: { name: string; company: string } | null) {
+  if (!folder) return nameFromDoc(application ?? docs[0]);
+  const candidates = [...(application ? readNames(application) : []), ...docs.flatMap(readNames)];
+  const agreeing = candidates.find((name) => namesOverlap(name, folder.company));
+  if (agreeing) return agreeing;
+  return FOLDER_DATE_STAMP.test(folder.name) ? folder.company : candidates[0] ?? folder.company;
+}
+
 export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
   // Keep the source engine's company grouping available, but avoid collapsing every
   // truly-unassociated document into one fake company. Unknown docs stay separate.
+  const folders = companyFolders(documents);
   const groups = new Map<string, ScannerDocument[]>();
+  const groupFolder = new Map<string, { name: string; company: string }>();
   documents.forEach((doc) => {
+    const folder = folderOfFilename(doc.filename);
+    const folderCompany = folder ? folders.get(folder) : undefined;
     const name = nameFromDoc(doc);
-    const key = name === 'Unassociated' ? `unassociated:${doc.fileId}` : normalized(name);
+    // Keyed by the folder's company name, so a loose file reading that same
+    // name still lands in the same lead.
+    const key = folderCompany ? normalized(folderCompany) : name === 'Unassociated' ? `unassociated:${doc.fileId}` : normalized(name);
     groups.set(key, [...(groups.get(key) ?? []), doc]);
+    if (folder && folderCompany) groupFolder.set(key, { name: folder, company: folderCompany });
   });
 
   mergeGroupsAtSameAddress(groups);
 
   const leads: ScannerLead[] = [];
   groups.forEach((docs, id) => {
-    const application = docs.find((d) => d.docType === 'application');
+    const application = leadApplication(docs);
     // A flagged duplicate is the same statement read twice, not a second
     // month: it stays visible in the audit trail but never adds a second
     // copy of its deposits/balances into the company's numbers.
     const unique = docs.filter((d) => !d.duplicateOfFileId);
     const statements = unique.filter((d) => d.docType === 'bank_statement' && !d.isMtd).sort((a, b) => String(b.statementPeriod?.end ?? '').localeCompare(String(a.statementPeriod?.end ?? '')));
     const mtdDocs = unique.filter((d) => d.docType === 'bank_statement' && !!d.isMtd).sort((a, b) => String(b.statementPeriod?.end ?? '').localeCompare(String(a.statementPeriod?.end ?? '')));
-    const companyName = nameFromDoc(application ?? docs[0]);
+    const companyName = leadName(docs, application, groupFolder.get(id) ?? null);
     const statementRevenue = statements.map(getDocumentRevenue).filter((n) => n > 0);
     const revenue = application?.application?.statedRevenue
       ?? (statementRevenue.length ? statementRevenue.reduce((a, b) => a + b, 0) / statementRevenue.length : 0);
