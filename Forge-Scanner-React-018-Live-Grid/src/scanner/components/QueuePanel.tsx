@@ -5,6 +5,10 @@ import { StatsStrip } from './StatsStrip';
 import { StoragePanel } from './StoragePanel';
 import { expandZips } from '../lib/zipUpload';
 import { useElapsedTimer } from '../hooks/useElapsedTimer';
+import { shortFilenameLabel } from '../lib/format';
+
+const SETTLED_STATUSES = ['complete', 'needs_review', 'failed', 'stopped', 'skipped'];
+const ACTIVE_STATUSES = ['validating', 'extracting', 'ocr'];
 
 interface Props {
   documents: ScannerDocument[];
@@ -46,6 +50,8 @@ export function QueuePanel(props: Props) {
   // (instead of a generic "Scanning") so it's obvious why things have slowed down.
   const ocrRunningCount = props.documents.filter((d) => d.processingStatus === 'ocr').length;
   const elapsed = useElapsedTimer(props.running, props.paused);
+  const activeDoc = props.documents.find((d) => ACTIVE_STATUSES.includes(d.processingStatus));
+  const settledCount = props.documents.filter((d) => SETTLED_STATUSES.includes(d.processingStatus)).length;
 
   const ingest = async (list: File[]) => {
     if (!list.length) return;
@@ -78,14 +84,35 @@ export function QueuePanel(props: Props) {
           onDrop={(e) => { e.preventDefault(); setDrag(false); void ingest(Array.from(e.dataTransfer.files)); }}
         >
           <UploadIcon />
-          <span><b>{unzipping ? 'Reading zip…' : 'Drop documents here'}</b><small>or click to browse · PDF, PNG, JPG, or a .zip of them</small></span>
+          <span>
+            <b>
+              {unzipping
+                ? 'Reading zip…'
+                : props.running
+                  ? `Scanning ${settledCount} / ${props.documents.length}`
+                  : 'Drop documents here'}
+            </b>
+            <small>
+              {props.running
+                ? (activeDoc ? shortFilenameLabel(activeDoc.filename) : 'Processing queue…')
+                : 'or click to browse · PDF, PNG, JPG, or a .zip of them'}
+            </small>
+          </span>
         </button>
         <input ref={inputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.zip" hidden onChange={(e) => add(e.target.files)} />
 
         <div className="toolbar-center">
           <div className="toolbar-title-row">
-            <h1>Forge Scanner</h1>
-            <span>{props.running ? (props.paused ? 'Paused' : ocrRunningCount ? `Running OCR (${ocrRunningCount}) -- this is the slow part` : 'Scanning') : queued ? `${queued} queued` : 'Ready'}</span>
+            <h1>Scanner</h1>
+            <span>
+              {props.running
+                ? (props.paused ? 'Paused' : ocrRunningCount ? `Running OCR (${ocrRunningCount}) -- this is the slow part` : 'Scanning')
+                : queued
+                  ? `${queued} queued`
+                  : needsOcrCount
+                    ? `Scan complete -- ${needsOcrCount} need${needsOcrCount === 1 ? 's' : ''} OCR`
+                    : 'Ready'}
+            </span>
           </div>
           <StatsStrip documents={props.documents} leads={props.leads} elapsed={elapsed} />
         </div>

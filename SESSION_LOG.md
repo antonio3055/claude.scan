@@ -886,3 +886,82 @@ funder) are unchanged and still correct.
 three commits from this session (MCA $25 floor + address-match lead
 merge, toolbar redesign, and this entry's cadence-projection + wire-in-
 exclusion fixes) are sitting locally, ready to push once reconnected.
+
+---
+
+## 2026-09-28 -- Audited a competing "scanner-app v0.15.1" build and a third
+engine embedded in a QikReach CRM HTML export; live-filename + OCR-count UI
+work (Scanner 05)
+
+User uploaded a separate build (`scanner-app` v0.15.1, package name and file
+layout both differ from this repo) asking to adopt it as an "upgraded
+scanner." Audited by actually running the same real `scan15test.zip`
+through both, in a real headless-Chromium harness built for the new build
+(no reusable harness shipped with it -- DB name `scanner_app_v3`, root
+class `.scanner-app`), not by reading code alone. Findings, reported before
+any code changed (no GO given for that specific decision, so nothing was
+merged in): its `mcaDetector.js` already carries this session's MCA fixes
+(byte-identical to ours), and it adds real new capability we don't have
+(CSV statement import, a `companyFinance.js` "opening pitch" generator with
+real invent-nothing guardrails, a rescan planner, a dedicated revenue-rule
+module, batch-ID tracking, routing/history/send-tracking UI) -- but it
+regresses two things fixed earlier this session: `leads.ts` never got the
+address-merge fix, so 366 Metro Mart/2 Everfresh split back into two
+fragmented rows (plus a spurious low-precision cross-flag against Abbaspour
+while its statements were still unmatched); and on the real Abbaspour
+December statement, its OCR failed where the current build reads it
+correctly. It also drops the stats dashboard (`StatsStrip.tsx`/
+`StoragePanel.tsx` don't exist in it) and stores scanned documents
+session-only in memory rather than IndexedDB (a refresh loses the whole
+batch, confirmed by reading its own `scannerStore.ts`/README, not
+assumed). Verdict given to the user: not a strict upgrade, a parallel fork
+that gained features and lost reliability; recommended porting the new
+engine modules into this codebase rather than replacing it. Decision
+pending.
+
+Separately audited a scanner engine embedded inside a much larger
+single-file "QikReach CRM" HTML export (`globalThis.QikReachScannerEngine`,
+~1,242 lines, hardcoded per-bank adapter functions -- Bluestone, Commerce,
+KeyPoint, PNC, Prosperity, Truist -- instead of this repo's generic
+pattern-driven parser). Its MCA detector still has the exact bugs this
+session found and fixed: the $25 floor, the blunt count-based cadence
+heuristic, and no wire-in exclusion, plus no monthly-burden projection at
+all and no NSF/cash-flow/expense/confidence-engine modules. User asked why
+not adopt its bank-specific adapters anyway; checked against the real
+`scan15test.zip` results already on hand -- every bank those adapters
+hardcode for (Bluestone, KeyPoint, Truist, Commerce, Prosperity, PNC)
+already reconciles cleanly through the current generic parser, so porting
+them would just be a second, unmaintained implementation of something
+already working. Not adopted.
+
+**GO given for combined UI work** (unrelated to the two audits above,
+gathered from several follow-up requests): removed the one remaining
+"Forge" branding string (`<h1>Forge Scanner</h1>` -> `<h1>Scanner</h1>` in
+`QueuePanel.tsx` -- confirmed via grep it was the only user-visible
+occurrence in `src/`; left the internal `.forge-scanner` CSS class alone,
+not user-visible and renaming it would touch every browser-suite selector
+for no benefit). Halved the upload dropzone from 320px to 160px wide per
+request, giving the stats grid (already `repeat(3, minmax(0,1fr))`, no
+fixed width) the freed space back automatically. Added a live shortened
+filename in the dropzone while scanning -- new `shortFilenameLabel()` in
+`lib/format.ts` (a filename-only guesser for the *pre-extraction* stage;
+deliberately separate from the existing `shortDocLabel()`, which needs a
+real `docType`/`statementPeriod` that doesn't exist yet mid-scan), wired
+into `QueuePanel.tsx`'s dropzone: big text becomes `Scanning N / total`,
+small text becomes the active document's short label. Added an explicit
+"Scan complete -- N need OCR" status line (was previously a silent count
+only visible on the Run OCR button's badge) once the initial pass settles
+and OCR is still pending, per explicit request for a number, not filenames.
+Confirmed the existing progress bar (`StatsStrip.tsx`'s `.scanner-progress`)
+is already computed from real `done / documents.length`, not decorative --
+no fix needed there. The "took a long time to unzip" complaint traced to
+zip extraction being deliberately sequential (one file at a time, a
+zip-bomb safety limit both this build and the competing one share) --
+flagged, not yet addressed.
+
+Verified: `tsc`, full 516-test suite, and `npm run build` all clean.
+Real-browser run against the actual `scan15test.zip`: mid-scan dropzone
+correctly read "Scanning 23 / 61" / "23hundred ventures inc BS APR";
+post-scan (pre-OCR) header correctly read "Scan complete -- 6 need OCR",
+matching the real count of files needing OCR in this dataset; 0 console/
+page errors throughout.

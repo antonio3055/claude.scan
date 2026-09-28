@@ -89,3 +89,47 @@ export function shortDocLabel(doc: ScannerDocument) {
 export function leadRevenue(lead: ScannerLead) {
   return lead.revenue || 0;
 }
+
+const SHORT_NAME_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const SHORT_NAME_MONTH_WORDS = [
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'
+];
+
+/**
+ * A guess at company/App/month from the raw filename alone, for display
+ * while a file is still mid-scan -- before extraction has produced a real
+ * `docType`/`statementPeriod` for `shortDocLabel` to use.
+ */
+export function shortFilenameLabel(name: string) {
+  const base = name
+    .replace(/^.*[\\/]/, '')
+    .replace(/\.[^.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const lower = base.toLowerCase();
+  let company = base
+    .replace(/\b(application|app|bank statement|statement|month to date|mtd|final|signed|copy|scan|document)\b/gi, ' ')
+    .replace(/\b(20\d{2}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4})\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  let suffix = '';
+  if (/month\s*to\s*date|\bmtd\b/i.test(lower)) {
+    suffix = 'MTD';
+  } else if (/application|\bapp\b/i.test(lower)) {
+    suffix = 'App';
+  } else {
+    const idx = SHORT_NAME_MONTH_WORDS.findIndex((m) => lower.includes(m));
+    if (idx >= 0) {
+      suffix = SHORT_NAME_MONTHS[idx];
+      company = company.replace(new RegExp(SHORT_NAME_MONTH_WORDS[idx], 'ig'), '').replace(/\s+/g, ' ').trim();
+    } else {
+      const shortIdx = SHORT_NAME_MONTHS.findIndex((m) => new RegExp(`\\b${m}\\b`, 'i').test(base));
+      if (shortIdx >= 0) {
+        suffix = SHORT_NAME_MONTHS[shortIdx];
+        company = company.replace(new RegExp(`\\b${SHORT_NAME_MONTHS[shortIdx]}\\b`, 'ig'), '').replace(/\s+/g, ' ').trim();
+      }
+    }
+  }
+  return [company || base.slice(0, 28), suffix].filter(Boolean).join(' ').slice(0, 46);
+}
