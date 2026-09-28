@@ -19,7 +19,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 
 export const DIST = path.join(root, 'dist');
 export const APP_ORIGIN = 'http://scanner.localhost';
-export const DB_NAME = 'forge_scanner_react_v2';
+export const DB_NAME = 'scanner_v2';
 
 export const SETTLED = ['complete', 'needs_review', 'failed', 'stopped'];
 
@@ -202,7 +202,7 @@ export async function launchScanner() {
 
     async open() {
       await page.goto(`${APP_ORIGIN}/index.html`, { waitUntil: 'load' });
-      await page.waitForSelector('.forge-scanner', { timeout: 20_000 });
+      await page.waitForSelector('.scanner-app', { timeout: 20_000 });
       await page.waitForSelector('input[type=file]', { state: 'attached' });
     },
 

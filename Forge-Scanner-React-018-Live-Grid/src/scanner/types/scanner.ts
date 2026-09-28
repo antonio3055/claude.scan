@@ -17,7 +17,6 @@ export interface ScanSettings {
   regularPages: number;
   ocrPages: number;
   maxFiles: number;
-  maxFileBytes: number;
   duplicateHandling: 'flag' | 'skip';
   /**
    * The application is always scanned first. If its stated revenue is below

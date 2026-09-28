@@ -40,7 +40,6 @@ export const DEFAULT_SCAN_SETTINGS: ScanSettings = {
   regularPages: 15,
   ocrPages: 2,
   maxFiles: 500,
-  maxFileBytes: 40 * 1024 * 1024,
   duplicateHandling: 'flag',
   revenueExclusionThreshold: 0,
   exporterInitials: '',

@@ -1,6 +1,6 @@
 import type { ScannerDocument, ScanSettings } from '../types/scanner';
 
-const DB_NAME = 'forge_scanner_react_v2';
+const DB_NAME = 'scanner_v2';
 const DB_VERSION = 1;
 const DOCS = 'documents';
 const FILES = 'files';

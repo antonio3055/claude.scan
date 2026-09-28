@@ -60,7 +60,6 @@ export function scanLaneCount(hardwareConcurrency) {
  */
 export const TERMINAL_ERROR_CODES = Object.freeze([
   'empty_file',
-  'file_too_large',
   'unsupported_file_type',
   'not_a_real_pdf_signature',
   'source_file_missing',

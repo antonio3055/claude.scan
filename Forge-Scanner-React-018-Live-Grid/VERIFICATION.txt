@@ -1,4 +1,4 @@
-Forge Scanner React 018 — Live Grid — verification record
+Scanner React 018 — Live Grid — verification record
 Verified: 2026-09-16   Node v22.22.2   npm 10.9.7   Chromium 141.0.7390.37
 
 ================================================================
