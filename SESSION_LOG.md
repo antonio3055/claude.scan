@@ -1241,3 +1241,78 @@ every change in this entry, not just at the end. Real-browser runs against
 again after the branding sweep to rule out anything broken by the
 `.forge-scanner` -> `.scanner-app` rename specifically. 0 console/page
 errors throughout.
+
+---
+
+## 2026-09-28 -- Issue #1 root-caused and fixed on the real batch; Scan Audit judges extraction, not status (Scanner 06)
+
+Ran locally (Windows, Claude Code desktop) against the user's real
+`C:\Users\kylem\Documents\scaned test files.zip` (119 PDFs + a nested
+`submissionbayareapavers.zip`, 26 company folders) through the built app in
+headless Playwright, plus `scan15test.zip` as the regression guard.
+
+**Baseline, real browser, before any change**: 26 of 27 Results rows blank on
+Owner, 24 on Phone/Email/BSD -- the user's screenshot exactly. Not a file-size
+problem (PR #17's limit removal was irrelevant) and not a code regression:
+`git log` shows the application reader unchanged since build 004. The
+"scan15test works because the scanner remembers it" theory was checked and is
+false for this scanner (no learning anywhere; the same code on raw text with no
+storage still reads scan15test 13/13) -- it IS true of the CRM HTML scanners,
+which save hand-edited cells per company (`qikreach.scanner.learning`) and
+re-apply them on every rescan.
+
+**Root causes (all confirmed on the real PDFs)**:
+1. The application reader knew one form layout ("Legal Company Name:" etc.).
+   11/27 applications fell back to the filename "APP" and, grouped by name,
+   collapsed into one fake lead; the real company rows got no application.
+2. 8 applications were read as bank statements (unclassified docs fall to the
+   statement path, where a phone number passes as an "account number").
+3. `pdfRows.rebuildRows` buckets baselines with `Math.round(y/2)*2`; forms print
+   answers 0.75-1.5 units off their labels, so label and answer split into two
+   lines, answer above label. (Node's legacy pdf.js looked fine only because a
+   naive text join hid it -- always check with the app's own `rebuildRows`.)
+
+**Fixes**: company-folder grouping in `leads.ts` (CRM export folders
+"NAME MM_DD_YYYY/"; ignored when there is only one folder or a folder holds
+2+ other companies; lead named by a read name agreeing with the folder, else
+the stamped folder name); application reader label variants, next-line
+answers, label-never-an-answer (`looksLikeLabel`), owner-section "Name",
+validated addresses/US states, dates searched past non-date text, generic
+filenames ("APP.pdf") never a company; whole-phrase application wording in
+`textQuality`; contact sheets (phones/emails only) kept as
+`applicationKind: 'contact_sheet'`; `rebuildRows(items, { mergeNearRows })`
+used ONLY for application reading via a separate `formText` -- statement text
+is byte-identical (an all-docs version changed holder names/revenue on 15
+statements and was reverted); applications set their own `needsOcr` (none of
+Company/Owner/Start date/Address read => labels-only form => OCR); nested zip
+one level deep; Clear cache also empties Tesseract's `keyval-store`
+(verified: 15.8 MB -> 0.1 MB, OCR still works right after).
+
+**Issue #2**: new `lib/docDiagnostics.ts`; Scan Audit gets a Result column
+(Good/Partial/Bad/Excluded) and a "Why" column with the specific finding
+("Found 3 of 8 -- missing Owner, Start date", "Form labels only... Needs OCR",
+"Contact list only...", "Read, but read 2 of 16 pages"), counts in the header,
+"Issues only" = anything not Good.
+
+**Verified**: 525/525 across 15 suites (9 new tests; one audit.mjs check
+restated to its real invariant -- the grouping key is derived in one
+statement), tsc, build. Real browser, new zip: blank Owner 26->12, Phone
+24->0, Email 24->1, BSD 24->7, one row per company folder, no junk rows, 0
+page errors; every real statement's numbers identical to baseline.
+scan15test: 0 of 43 statements changed, still 0 blanks.
+
+**Known gaps, not fixed**: two-column forms (ARCOS: a row of two labels, the
+answers on the row below) need column positions; label-only forms need the
+manual OCR pass; there is still a silent 500-file cap per session
+(`maxFiles` in `addFiles`).
+
+**CRM comparison, partial**: the CRM HTML files load pdf.js/Tesseract from
+CDNs -- with the network truly cut and a clean cache they fail ("PDF reader
+could not load"); they only work offline from a warm browser cache. Their live
+engine is `QikReachScannerEngine` (frozen object); the older
+`extractApp`/`buildFinal` in the same file is not on the scan path. A full
+three-way run was stopped at the user's request before results were read.
+
+**Local package**: `C:\Users\kylem\Documents\Scanner-Fixed\` -- built `dist/`
+plus a 127.0.0.1 static server and "Start Scanner.cmd", so the scanner runs
+from disk with no internet (the hosted site cannot load offline).
