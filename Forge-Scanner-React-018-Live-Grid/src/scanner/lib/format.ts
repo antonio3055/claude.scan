@@ -93,6 +93,30 @@ export function leadRevenue(lead: ScannerLead) {
   return lead.revenue || 0;
 }
 
+/**
+ * One entry per distinct bank+account on a lead's statements, as
+ * "Bank Name • AccountNumber" -- the account number is always the full,
+ * unmasked value the engine extracted (accountNumber, not
+ * accountNumberMasked), exactly as the statement itself prints it. If the
+ * bank's own statement only ever shows a masked number (e.g. "XXXXX4439"),
+ * that whole masked string is shown as printed -- never trimmed down to a
+ * fixed 4 X's.
+ */
+export function bankAccountEntries(lead: ScannerLead): string[] {
+  const seen = new Set<string>();
+  const entries: string[] = [];
+  for (const doc of lead.statements) {
+    const bank = doc.bankAccount?.bank;
+    if (!bank) continue;
+    const account = doc.bankAccount?.accountNumber || null;
+    const key = `${bank}|${account ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(account ? `${bank} • ${account}` : bank);
+  }
+  return entries;
+}
+
 const SHORT_NAME_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 const SHORT_NAME_MONTH_WORDS = [
   'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'

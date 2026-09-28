@@ -79,8 +79,15 @@
       }
     }
 
+    // Last-resort digit-run scan: skip any line that reads like a narrative
+    // financial-statement sentence rather than an account-number line, so a
+    // balance/date/dollar line (e.g. "Beginning balance on January 1, 2026
+    // $8,059.65", whose digits alone concatenate to a plausible-looking
+    // account-number-length run) is never mistaken for one.
+    const NARRATIVE_LINE = /\$|balance|deposit|withdrawal|credit|debit|transaction|description|january|february|march|april|may|june|july|august|september|october|november|december/i;
     for (const line of lines.slice(0, 35)) {
       if (/\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|\(|\)/.test(line)) continue;
+      if (NARRATIVE_LINE.test(line)) continue;
       const token = U.normAcct(line);
       if (/^\d{10,17}$/.test(token) && !/^(1800|1888|1877|1866|1855|1844|1833|844|888|877|866|855|833)/.test(token)) return token;
     }

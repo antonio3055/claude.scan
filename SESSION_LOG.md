@@ -1038,3 +1038,122 @@ new, intentional behavior, not loosened), and `npm run build` all clean.
 Real-browser screenshots confirm the wider dropzone with its live bar and
 filename, and the widened controls box with Mode/Auto OCR/Initials/Skip
 Under $/Dupes all inline and Run OCR rendering enabled even at 0 needed.
+
+---
+
+## 2026-09-28 (continued) -- Bank column now shows the full account number;
+found and fixed a real mis-extraction bug it exposed; Run OCR's "starting"
+state actually covers the cold-start dead zone; audit table fills the full
+width; Clear Cache UX made honest about IndexedDB's own accounting (Scanner 05)
+
+User sent a real `9.28.13L1443.xlsx` export and a batch of feedback from
+using the live site. Investigated each with real data before changing
+anything, per this session's standing practice.
+
+**Bank column never showed an account number at all** -- confirmed by
+reading the uploaded xlsx directly: the "Bank" column only ever had bank
+name(s), e.g. "Indiana Members Credit Union • Farmers Bank" (that `•` joins
+*multiple bank names*, not a name from an account number -- there was no
+account number anywhere in the export or the live sheet). Added
+`bankAccountEntries()` to `lib/format.ts`, shared by `LeadsSheet.tsx` (the
+live sheet) and `xlsxExport.ts` (so both show the same thing): one entry per
+distinct bank+account as `"Bank Name • AccountNumber"`, using the engine's
+raw `bankAccount.accountNumber` -- never `accountNumberMasked`, which the
+engine already computed but nothing ever displayed, and which forces
+everything down to a fixed "XXXX"+4-digits regardless of how many X's the
+bank itself printed. Multiple bank+account *pairs* on one lead are now
+joined with " · " (matching the file's own convention for joining separate
+list items elsewhere -- statements, MCA funders), fixing a latent
+inconsistency where the old `bankText()`/`row()` joined multiple bank names
+with " • ", the same character about to mean something different within
+each entry.
+
+**Found a real extraction bug while verifying this against a synthetic
+fixture** (`test-company-info-browser.mjs`): displaying the raw account
+number surfaced that `accountNumber.js`'s last-resort fallback (scanning
+the first 35 lines for any line whose digits alone concatenate to a
+10-17-digit run) had matched "Beginning balance on January 1, 2026
+$8,059.65" -- its digits concatenate to `12026805965`, which happens to
+look exactly like a plausible account number. This was always a latent bug,
+just invisible before nothing ever showed the raw account number. Fixed at
+the root: added a `NARRATIVE_LINE` exclusion (dollar signs, month names,
+"balance"/"deposit"/"withdrawal"/"credit"/"debit"/"transaction"/
+"description") to that fallback, so a financial-statement sentence can
+never be mistaken for an account-number line. The test needed no change
+once the extraction was actually fixed -- confirms this was a root-cause
+fix, not a loosened assertion. Verified against the real `scan15test.zip`:
+every real masked account number now displays with its own true X-count as
+printed (`XXXXXX8114`, `XXXX0493`, `XXXXXX5199`, `XXXXXX8830` -- not
+homogenized to a fixed 4 X's), full unmasked numbers show in full
+(`528817520`, `1100040847624`, etc.), and Abbaspour's two-bank lead reads
+"Indiana Members Credit Union • XXXXXX8114 · Farmers Bank • XXXXXX0593".
+
+**"No visible sign Run OCR was running" (user stopped it after 15s
+thinking it hadn't started, then re-ran it and saw it working)** -- real
+gap: a document sits in 'validating'/'extracting' for a genuinely long time
+during OCR worker cold-start (loading the Tesseract WASM + language data),
+and the toolbar's "Running OCR (N)" label only appears once a document
+reaches the 'ocr' stage specifically. Added a local `ocrStarting` flag in
+`QueuePanel.tsx`: set the instant the button is clicked (only when
+`needsOcrCount > 0`, so a genuine no-op click doesn't get stuck "starting"
+forever with nothing to clear it), cleared once either a document actually
+reaches 'ocr' (`ocrRunningCount > 0`) or a run that was going ends without
+ever getting there. Button reads "Starting OCR…" (with a pulsing highlight,
+`.toolbar-action-btn.starting` in `scanner.css`) for that whole real dead
+zone, then "Running OCR…" once genuine progress is visible. Got the first
+version of this wrong and caught it before shipping: an earlier attempt
+cleared the flag as soon as `props.running` went true, which happens
+almost immediately (well before OCR itself starts) -- verified with a
+real-browser check reading the button's own text at 50/300/800/1500/3000ms
+after the click, confirmed the first version fell back to bare "Run OCR"
+during exactly the dead zone it was meant to cover, then fixed it to gate
+on real OCR progress instead and re-verified clean.
+
+**Audit table columns spread to fill the full width instead of scrolling
+horizontally**, per request. Two real things were wrong, not one: (1) the
+grid's last column (`AuditTable.tsx`) used a fixed pixel width like all the
+others -- changed to `minmax(width, 1fr)` so it absorbs whatever space is
+left; (2) even after that, the shared `.sheet-row` CSS class (built for the
+leads sheet's many fixed-width columns, which are *meant* to scroll) sets
+`width: max-content`, which sizes the whole row -- 1fr track included -- to
+its content's natural width instead of the container's, silently
+reintroducing the same horizontal overflow the `1fr` fix was supposed to
+remove. Confirmed via computed styles before and after
+(`scrollWidth`/`clientWidth` from equal to exactly double, back to equal)
+rather than trusting the fix by eye. Scoped the override
+(`.audit-table-body .sheet-row { width: 100%; }`) to the audit table only,
+so the leads sheet's own intentional wide-scroll layout is untouched.
+
+**Investigated "Clear cache: 40MB -> 18MB, and clicking again does nothing"**
+with a real-data repro, not a guess: built a script that reads
+`navigator.storage.estimate()` and the IndexedDB `documents`/`files`/
+`settings` record counts directly, before a clear, immediately after, 5s
+later, and after a second click. Confirmed `clearAll()` is correct --
+record counts go to `{documents: 0, files: 0}` immediately, every time.
+What's misleading is the *byte estimate*: it went UP right after
+clearing (636KB -> 1.28MB in the test run), a known IndexedDB behavior
+(the browser's on-disk deletion tombstones inflate reported usage before a
+later compaction pass reclaims it, on its own schedule, outside any web
+API's control) -- so a second click genuinely has nothing left to delete,
+and the number not dropping is expected, not broken. Not fixable in JS (no
+browser exposes a "compact now" API); fixed the UX instead so it stops
+looking broken: `StoragePanel.tsx`'s `onClear` now returns a real `Promise`
+(previously fired-and-forgot, so "Clearing…" never reflected the actual
+async duration) that's properly awaited, followed by an explicit
+"Cleared ✓" confirmation for 4 seconds -- a positive signal that does not
+depend on the untrustworthy byte number -- and the tooltip now explains
+the real mechanism instead of undersellng it as "a few KB."
+
+**"Extraction was good, OCR was slow, regular scan was a drop slower than
+normal"** -- no engine/pipeline code changed hands this round except the
+one-line `accountNumber.js` fallback fix (negligible cost), so there's no
+known regression to point to; flagged back to the user rather than guessing
+at a fix for something not reproduced, since nothing in this round touched
+scan speed.
+
+Verified: `tsc`, full 516-test suite (unchanged -- the one fixture-exposed
+bug was fixed at the root, no assertions loosened), and `npm run build` all
+clean. Real-browser runs against the actual `scan15test.zip` throughout,
+not just at the end: Bank+account text confirmed per company, Run OCR
+button text confirmed across the full cold-start window, audit table grid
+width confirmed via computed styles pre/post fix.

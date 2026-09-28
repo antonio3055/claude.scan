@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ScannerDocument, ScannerLead, ScanSettings } from '../types/scanner';
 import { MoreIcon, PauseIcon, PlayIcon, RefreshIcon, SendIcon, StopIcon, UploadIcon } from './ScannerIcons';
 import { StatsStrip } from './StatsStrip';
@@ -27,7 +27,7 @@ interface Props {
   onClearCompleted: () => void;
   onOpenOcrFiles: () => void;
   onOpenSend: () => void;
-  onClearStorage: () => void;
+  onClearStorage: () => Promise<void>;
   storageEpoch: number;
   readyToSend: number;
 }
@@ -48,6 +48,19 @@ export function QueuePanel(props: Props) {
   // (instead of a generic "Scanning") so it's obvious why things have slowed down.
   const ocrRunningCount = props.documents.filter((d) => d.processingStatus === 'ocr').length;
   const elapsed = useElapsedTimer(props.running, props.paused);
+  // A worker cold-start (loading the OCR engine's WASM + language data) can
+  // take several real seconds with nothing else visibly changing -- this
+  // local flag covers that whole dead zone, from the instant of the click
+  // until either a document actually reaches the 'ocr' stage (real progress
+  // to show instead) or the run ends without ever getting there (nothing
+  // was flagged, a genuine no-op click).
+  const [ocrStarting, setOcrStarting] = useState(false);
+  const wasRunningRef = useRef(false);
+  useEffect(() => {
+    if (ocrRunningCount > 0) setOcrStarting(false);
+    else if (wasRunningRef.current && !props.running) setOcrStarting(false);
+    wasRunningRef.current = props.running;
+  }, [props.running, ocrRunningCount]);
   const activeDoc = props.documents.find((d) => ACTIVE_STATUSES.includes(d.processingStatus));
   const settledCount = props.documents.filter((d) => SETTLED_STATUSES.includes(d.processingStatus)).length;
 
@@ -192,12 +205,18 @@ export function QueuePanel(props: Props) {
             </details>
           </div>
           <button
-            className="toolbar-action-btn"
+            className={`toolbar-action-btn${ocrStarting ? ' starting' : ''}`}
             type="button"
-            onClick={props.onRunOcr}
+            onClick={() => { if (needsOcrCount > 0) setOcrStarting(true); props.onRunOcr(); }}
             title={needsOcrCount ? `${needsOcrCount} file(s) have no text layer and need OCR` : 'No file needs OCR right now -- click anyway to recheck'}
           >
-            <RefreshIcon />Run OCR <b>{needsOcrCount || ''}</b>
+            <RefreshIcon />
+            {ocrStarting
+              ? 'Starting OCR…'
+              : props.running && ocrRunningCount > 0
+                ? 'Running OCR…'
+                : 'Run OCR'}
+            <b>{needsOcrCount || ''}</b>
           </button>
         </div>
       </div>

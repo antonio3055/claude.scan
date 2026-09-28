@@ -1,5 +1,6 @@
 import type { ScannerLead } from '../types/scanner';
 import { roundDisplayAmount, potentialApproval } from './displayRules';
+import { bankAccountEntries } from './format';
 
 const HEADER = [
   'Company', 'Owner', 'Revenue', 'Approval', 'Phone', 'Email', 'Address', 'App date', 'Statements', 'Bank',
@@ -29,7 +30,6 @@ function mcaText(lead: ScannerLead): string {
 
 function row(lead: ScannerLead): (string | number | boolean | null)[] {
   const app = lead.application?.application;
-  const banks = [...new Set(lead.statements.map((d) => d.bankAccount?.bank).filter(Boolean))] as string[];
   return [
     lead.companyName,
     app?.fullName ?? null,
@@ -40,7 +40,7 @@ function row(lead: ScannerLead): (string | number | boolean | null)[] {
     lead.companyInfo.applicationAddress ?? lead.companyInfo.statementAddresses[0] ?? null,
     app?.appDate ?? null,
     statementsText(lead) || null,
-    banks.join(' • ') || null,
+    bankAccountEntries(lead).join(' · ') || null,
     app?.businessStartDate ?? null,
     mcaText(lead) || null,
     lead.extractionScore,
