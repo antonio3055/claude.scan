@@ -5,9 +5,8 @@ import { StatsStrip } from './StatsStrip';
 import { StoragePanel } from './StoragePanel';
 import { expandZips } from '../lib/zipUpload';
 import { useElapsedTimer } from '../hooks/useElapsedTimer';
-import { shortFilenameLabel } from '../lib/format';
+import { shortFilenameLabel, SETTLED_STATUSES } from '../lib/format';
 
-const SETTLED_STATUSES = ['complete', 'needs_review', 'failed', 'stopped', 'skipped'];
 const ACTIVE_STATUSES = ['validating', 'extracting', 'ocr'];
 
 interface Props {
@@ -26,7 +25,6 @@ interface Props {
   onRetryFailed: () => void;
   onRunOcr: () => void;
   onClearCompleted: () => void;
-  onOpenOptions: () => void;
   onOpenOcrFiles: () => void;
   onOpenSend: () => void;
   onClearStorage: () => void;
@@ -98,6 +96,11 @@ export function QueuePanel(props: Props) {
                 : 'or click to browse · PDF, PNG, JPG, or a .zip of them'}
             </small>
           </span>
+          {props.running && props.documents.length > 0 && (
+            <div className="dropzone-progress" title={`${settledCount} / ${props.documents.length} settled`}>
+              <div className="dropzone-progress-fill" style={{ width: `${Math.round((settledCount / props.documents.length) * 100)}%` }} />
+            </div>
+          )}
         </button>
         <input ref={inputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.zip" hidden onChange={(e) => add(e.target.files)} />
 
@@ -121,15 +124,49 @@ export function QueuePanel(props: Props) {
           <div className="page-limits" title="Pages read per file before the scan stops reading it">
             <label>Reg
               <input
+                data-field="regular-pages"
                 type="number" min="1" max="9999" value={props.settings.regularPages}
                 onChange={(e) => props.onSettings({ ...props.settings, regularPages: Math.max(1, Number(e.target.value) || 9999) })}
               />
             </label>
             <label>OCR
               <input
+                data-field="ocr-pages"
                 type="number" min="1" max="9999" value={props.settings.ocrPages}
                 onChange={(e) => props.onSettings({ ...props.settings, ocrPages: Math.max(1, Number(e.target.value) || 9999) })}
               />
+            </label>
+          </div>
+          <div className="options-row">
+            <label className="option-pill" title="Whether a scan reads pages as printed text or goes straight to OCR">Mode
+              <select data-field="scan-mode" value={props.settings.mode} onChange={(e) => props.onSettings({ ...props.settings, mode: e.target.value as 'regular' | 'ocr' })}>
+                <option value="regular">Regular</option>
+                <option value="ocr">OCR</option>
+              </select>
+            </label>
+            <label className="option-pill" title="OCR is by far the slowest stage. Off: flagged files wait for Run OCR. On: a regular scan runs OCR on them automatically right after.">Auto OCR
+              <select data-field="auto-ocr" value={props.settings.autoContinueOcr ? 'on' : 'off'} onChange={(e) => props.onSettings({ ...props.settings, autoContinueOcr: e.target.value === 'on' })}>
+                <option value="off">Off</option>
+                <option value="on">On</option>
+              </select>
+            </label>
+            <label className="option-pill" title="Your initials go at the front of the exported XLSX filename, e.g. MM9.17.13L1342.xlsx">Initials
+              <input
+                type="text" maxLength={4} placeholder="MM" value={props.settings.exporterInitials}
+                onChange={(e) => props.onSettings({ ...props.settings, exporterInitials: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4) })}
+              />
+            </label>
+            <label className="option-pill" title="The application is always scanned first. If its stated revenue is under this amount, that company's statements are skipped. 0 turns this off.">Skip under $
+              <input
+                type="number" min="0" step="1000" value={props.settings.revenueExclusionThreshold}
+                onChange={(e) => props.onSettings({ ...props.settings, revenueExclusionThreshold: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </label>
+            <label className="option-pill" title="What happens to a file that's already been uploaded">Dupes
+              <select value={props.settings.duplicateHandling} onChange={(e) => props.onSettings({ ...props.settings, duplicateHandling: e.target.value as 'flag' | 'skip' })}>
+                <option value="flag">Flag</option>
+                <option value="skip">Skip</option>
+              </select>
             </label>
           </div>
           <StoragePanel onClear={props.onClearStorage} epoch={props.storageEpoch} />
@@ -158,12 +195,10 @@ export function QueuePanel(props: Props) {
             className="toolbar-action-btn"
             type="button"
             onClick={props.onRunOcr}
-            disabled={!needsOcrCount}
-            title={needsOcrCount ? `${needsOcrCount} file(s) have no text layer and need OCR` : 'No file needs OCR'}
+            title={needsOcrCount ? `${needsOcrCount} file(s) have no text layer and need OCR` : 'No file needs OCR right now -- click anyway to recheck'}
           >
             <RefreshIcon />Run OCR <b>{needsOcrCount || ''}</b>
           </button>
-          <button className="toolbar-action-btn" type="button" onClick={props.onOpenOptions}>Options…</button>
         </div>
       </div>
 

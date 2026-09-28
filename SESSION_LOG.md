@@ -965,3 +965,76 @@ correctly read "Scanning 23 / 61" / "23hundred ventures inc BS APR";
 post-scan (pre-OCR) header correctly read "Scan complete -- 6 need OCR",
 matching the real count of files needing OCR in this dataset; 0 console/
 page errors throughout.
+
+---
+
+## 2026-09-28 (continued) -- Dropzone 3x wider with its own live progress bar,
+Options modal folded onto the main page, Run OCR never greys out (Scanner 05)
+
+Follow-up round on the same live toolbar, per explicit requests:
+
+**Dropzone widened 3x** (160px -> 480px) and given its own progress bar
+(`.dropzone-progress`/`.dropzone-progress-fill` in `scanner.css`) under the
+live filename added earlier this session -- same `done / documents.length`
+formula as the existing stats-strip bar, so the two never disagree. Verified
+against the real `scan15test.zip`: mid-scan the dropzone correctly showed
+"Scanning 23 / 61" / "23hundred ventures inc BS APR" with the bar at ~38%.
+
+**"Scan mode" and the rest of the Options modal moved onto the main page**,
+per request ("PUT SCAN MODE AND SCANNER OPTIONS ON MAIN PAGE") -- the
+controls box widened 320px -> 440px (height now `auto` instead of a fixed
+220px, since it holds real content now, not empty space) to fit a new
+`.options-row` of compact `.option-pill` fields: Mode, Auto OCR, Initials,
+Skip Under $ (the revenue-exclusion threshold), and Dupes (duplicate
+handling) -- every field the old `OptionsModal.tsx` had. The modal itself,
+its "Options…" button, and its `optionsOpen` state in `ScannerPage.tsx` are
+deleted outright (not left dead) since nothing points at them anymore.
+`scripts/lib/browser-harness.mjs`'s `setScanMode`/`setRegularPages`/
+`setOcrPages`/`setAutoContinueOcr` helpers (used by `test-offline-browser`,
+`test-stop-browser`, `test-manual-ocr-browser`, `run-batch`) no longer open
+a modal that no longer exists -- rewritten to drive the inline fields
+directly via new `data-field` attributes (`scan-mode`, `regular-pages`,
+`ocr-pages`, `auto-ocr`) rather than fragile label-text matching, since the
+inline labels are deliberately shorter ("Mode" not "Scan mode") than the
+old modal's were.
+
+**Run OCR (and everything else) no longer greys out**, per explicit
+request. It was the only `disabled=` in the whole toolbar besides Clear
+Cache's brief in-flight guard (left alone -- that one prevents a real
+double-click race during an async clear, not a persistent "nothing to do"
+state, so it doesn't fall under the same complaint). Confirmed safe before
+removing it: `runOcrOnFlagged()` in `useScannerQueue.ts` already no-ops
+(`if (!targets.length) return;`) when nothing is flagged, so leaving the
+button clickable can't misfire. Existing suite
+`test-manual-ocr-browser.mjs` had a check hard-asserting the old greyed-out
+behavior (`isDisabled() === true`) -- since that's precisely the behavior
+removed on purpose, rewrote the check to assert the new contract instead:
+the button stays enabled, and clicking it with nothing flagged changes no
+document (verified via `readDocuments()` before/after, not just "didn't
+throw").
+
+**Investigated the "Clear cache only went from 2.8KB to 2.5KB" report** --
+not a bug. `scannerStore.clearAll()` (`services/scannerStore.ts`) really
+does call `.clear()` on both the `documents` and `files` IndexedDB stores;
+what's deliberately left behind is the `settings` store (Reg/OCR page
+counts, initials, thresholds, etc.), so a "free up space" click doesn't
+also reset your preferences -- the remaining few KB is that tiny settings
+row plus the browser's own IndexedDB storage-accounting overhead, not
+leftover scanned documents. Already explained in `StoragePanel.tsx`'s own
+tooltip; not changed, since "fixing" it would mean wiping settings on every
+cache clear, which is worse UX than what's there. Flagged to the user
+rather than left silent.
+
+**Fixed a real inconsistency found while wiring the new dropzone bar**:
+`StatsStrip.tsx`'s progress bar used its own local `DONE_STATUSES` that
+excluded `'skipped'`, while every browser-harness/test script's own
+"settled" list (and the dropzone status line added earlier this session)
+includes it. Pulled both into one shared `SETTLED_STATUSES` export in
+`lib/format.ts` so "done" means the same thing everywhere in the app, not
+two slightly different sets by accident.
+
+Verified: `tsc`, full 516-test suite (one assertion updated to match the
+new, intentional behavior, not loosened), and `npm run build` all clean.
+Real-browser screenshots confirm the wider dropzone with its live bar and
+filename, and the widened controls box with Mode/Auto OCR/Initials/Skip
+Under $/Dupes all inline and Run OCR rendering enabled even at 0 needed.

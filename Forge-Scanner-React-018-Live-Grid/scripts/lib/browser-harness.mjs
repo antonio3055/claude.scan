@@ -206,50 +206,36 @@ export async function launchScanner() {
       await page.waitForSelector('input[type=file]', { state: 'attached' });
     },
 
-    /** Open the Options popup, exactly as a user would (its own standalone toolbar button). */
-    async openOptions() {
-      await page.getByRole('button', { name: /^options…?$/i }).click();
-      await page.waitForSelector('.scanner-modal-body');
-    },
-
-    /** Close whatever popup modal is open. */
+    /** Close whatever popup modal is open (OCR files, Send leads, etc. -- Options no longer is one). */
     async closeModal() {
       await page.getByTitle('Close').click();
       await page.waitForSelector('.scanner-modal-overlay', { state: 'detached' });
     },
 
-    /** Drive the approved UI's own scan-mode control, in the Options popup. */
+    /** Drive the approved UI's own scan-mode control, inline on the main toolbar. */
     async setScanMode(mode) {
-      await this.openOptions();
-      await page.getByLabel('Scan mode').selectOption(mode);
+      await page.locator('[data-field="scan-mode"]').selectOption(mode);
       await page.waitForFunction(
-        (expected) => document.querySelector('.scanner-modal-body select')?.value === expected,
+        (expected) => document.querySelector('[data-field="scan-mode"]')?.value === expected,
         mode
       );
-      await this.closeModal();
     },
 
     async setRegularPages(count) {
-      await this.openOptions();
-      const input = page.getByLabel('Regular pages');
+      const input = page.locator('[data-field="regular-pages"]');
       await input.fill(String(count));
       await input.dispatchEvent('change');
-      await this.closeModal();
     },
 
     async setOcrPages(count) {
-      await this.openOptions();
-      const input = page.getByLabel('OCR pages');
+      const input = page.locator('[data-field="ocr-pages"]');
       await input.fill(String(count));
       await input.dispatchEvent('change');
-      await this.closeModal();
     },
 
     /** Off by default: OCR is slow, so a regular scan only auto-continues into it when this is turned on. */
     async setAutoContinueOcr(enabled) {
-      await this.openOptions();
-      await page.getByLabel('Auto-run OCR after scan').selectOption(enabled ? 'on' : 'off');
-      await this.closeModal();
+      await page.locator('[data-field="auto-ocr"]').selectOption(enabled ? 'on' : 'off');
     },
 
     /** Upload through the real hidden file input the upload zone uses. */
