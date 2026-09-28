@@ -35,9 +35,6 @@ export async function validateFile(file, settings) {
   if (!file || file.size === 0) {
     return { valid: false, reason: 'empty_file' };
   }
-  if (file.size > settings.maxFileBytes) {
-    return { valid: false, reason: 'file_too_large' };
-  }
 
   const isPdf = /\.pdf$/i.test(file.name);
   const isImage = /\.(png|jpe?g)$/i.test(file.name);

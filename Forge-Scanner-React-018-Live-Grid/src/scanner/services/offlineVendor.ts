@@ -147,7 +147,7 @@ function getPdfWorker(pdfjsLib: any) {
   }
   if (pdfWorker && !pdfWorker.destroyed) return pdfWorker;
   pdfWorkerSuspect = false;
-  pdfWorker = new pdfjsLib.PDFWorker({ name: 'forge-scanner-pdf' });
+  pdfWorker = new pdfjsLib.PDFWorker({ name: 'scanner-pdf' });
   return pdfWorker;
 }
 

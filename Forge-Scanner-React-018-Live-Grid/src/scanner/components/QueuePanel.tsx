@@ -37,6 +37,7 @@ export function QueuePanel(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [unzipping, setUnzipping] = useState(false);
+  const [unzipProgress, setUnzipProgress] = useState<{ found: number; scanned: number; total: number } | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
   const rescanCount = props.documents.filter((d) => d.processingStatus === 'failed' || d.processingStatus === 'stopped').length;
   const queued = props.documents.filter((d) => d.processingStatus === 'queued' || d.processingStatus === 'stopped').length;
@@ -67,12 +68,22 @@ export function QueuePanel(props: Props) {
   const ingest = async (list: File[]) => {
     if (!list.length) return;
     setUnzipping(true);
+    setUnzipProgress(null);
+    // Zip inflate is CPU-bound and single-threaded; without an explicit
+    // yield here the browser can go straight from this state update into a
+    // long synchronous stretch without ever painting it -- "accepted" would
+    // never actually appear on screen. Two rAFs guarantee a real paint
+    // happens first.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     try {
-      const { files, notices: found } = await expandZips(list);
+      const { files, notices: found } = await expandZips(list, (foundCount, scanned, total) => {
+        setUnzipProgress({ found: foundCount, scanned, total });
+      });
       if (found.length) setNotices((prev) => [...found, ...prev].slice(0, 8));
       if (files.length) props.onAddFiles(files);
     } finally {
       setUnzipping(false);
+      setUnzipProgress(null);
     }
   };
 
@@ -98,15 +109,19 @@ export function QueuePanel(props: Props) {
           <span>
             <b>
               {unzipping
-                ? 'Reading zip…'
+                ? 'Zip accepted -- reading…'
                 : props.running
                   ? `Scanning ${settledCount} / ${props.documents.length}`
                   : 'Drop documents here'}
             </b>
             <small>
-              {props.running
-                ? (activeDoc ? shortFilenameLabel(activeDoc.filename) : 'Processing queue…')
-                : 'or click to browse · PDF, PNG, JPG, or a .zip of them'}
+              {unzipping
+                ? (unzipProgress
+                    ? `${unzipProgress.found} document${unzipProgress.found === 1 ? '' : 's'} found · ${unzipProgress.scanned} / ${unzipProgress.total} entries scanned`
+                    : 'Unpacking…')
+                : props.running
+                  ? (activeDoc ? shortFilenameLabel(activeDoc.filename) : 'Processing queue…')
+                  : 'or click to browse · PDF, PNG, JPG, or a .zip of them'}
             </small>
           </span>
           {props.running && props.documents.length > 0 && (

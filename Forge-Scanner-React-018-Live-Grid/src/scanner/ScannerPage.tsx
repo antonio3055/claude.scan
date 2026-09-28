@@ -55,7 +55,7 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
   }, []);
 
   return (
-    <div className={`forge-scanner ${className}`.trim()}>
+    <div className={`scanner-app ${className}`.trim()}>
       <QueuePanel
         documents={scanner.documents}
         leads={leads}

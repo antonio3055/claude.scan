@@ -1,4 +1,4 @@
-# Forge Scanner React 018 — Live Grid
+# Scanner React 018 — Live Grid
 
 Standalone React + Vite scanner module, prepared for direct use inside the CRM and later Electron packaging.
 

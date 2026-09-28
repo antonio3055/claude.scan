@@ -28,7 +28,6 @@ const settings = {
   regularPages: 3,
   ocrPages: 1,
   maxFiles: 500,
-  maxFileBytes: 40 * 1024 * 1024,
   duplicateHandling: 'flag'
 };
 
@@ -40,13 +39,9 @@ await reporter.check('an empty file is rejected', async () => {
   assert.equal(result.reason, 'empty_file');
 });
 
-await reporter.check('an oversized file is rejected', async () => {
-  const result = await validateFile(toFile(goodPdfBytes, 'big.pdf', 'application/pdf'), {
-    ...settings,
-    maxFileBytes: 10
-  });
-  assert.equal(result.valid, false);
-  assert.equal(result.reason, 'file_too_large');
+await reporter.check('there is no file-size limit -- a large real file is accepted', async () => {
+  const result = await validateFile(toFile(goodPdfBytes, 'big.pdf', 'application/pdf'), settings);
+  assert.equal(result.valid, true);
 });
 
 await reporter.check('an unsupported extension is rejected', async () => {

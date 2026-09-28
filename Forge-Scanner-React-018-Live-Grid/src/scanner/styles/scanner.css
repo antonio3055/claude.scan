@@ -1,4 +1,4 @@
-.forge-scanner {
+.scanner-app {
   --bg: #f2f5fb;
   --surface: #ffffff;
   --surface-soft: #eef2fb;
@@ -227,7 +227,7 @@
 /* ---------- Scan Audit (one row per document, collapsed by default) ---------- */
 .audit-table-section { flex: 0 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 /* Fixed, not shrinkable: it always opens to a real, usable size. If that
-   pushes total page content past the viewport, .forge-scanner's own
+   pushes total page content past the viewport, .scanner-app's own
    overflow-y:auto is the escape hatch -- the page scrolls instead of this
    panel silently squashing itself down to nothing. */
 .audit-table-section.open { flex: 0 0 460px; display: flex; flex-direction: column; }

@@ -1157,3 +1157,87 @@ clean. Real-browser runs against the actual `scan15test.zip` throughout,
 not just at the end: Bank+account text confirmed per company, Run OCR
 button text confirmed across the full cold-start window, audit table grid
 width confirmed via computed styles pre/post fix.
+
+---
+
+## 2026-09-28 (continued) -- Zip upload is never silent, no file-size limit,
+"Forge" removed everywhere including internal identifiers (Scanner 05)
+
+User reported real "very bad results" on a new dataset
+(`submissionbayareapavers.zip`, not the familiar `scan15test.zip` --
+screenshot showed many blank Owner/Phone/Email/BSD cells) and complete UI
+silence for ~10 seconds after dropping a zip. Investigated both; the actual
+file for the bad-results report was never attached (only a screenshot,
+and a Windows local path the session cannot reach), so that one is still
+open -- asked the user to upload the zip directly rather than guess at a
+fix with no reproduction.
+
+**The 10-second silence was real and root-caused, not assumed.**
+`extractPdfsFromZip` (`lib/zipUpload.ts`) fired every entry's
+`entry.async('blob')` via `Promise.all` inside `zip.forEach` -- zip inflate
+is CPU-bound and single-threaded, and `Promise.all` alone never yields
+control back to the browser, so a state update (`setUnzipping(true)`) could
+fire and the browser could still never get a chance to *paint* it before a
+long synchronous stretch of decompression ran. Rewrote to a sequential
+loop, one entry at a time, with a real yield (`setTimeout(resolve, 0)`)
+after each -- keeps the page responsive throughout instead of one frozen
+stretch. Added an `onProgress(found, scanned, total)` callback threaded
+through `extractPdfsFromZip` -> `expandZips` -> `QueuePanel.tsx`, and two
+`requestAnimationFrame`s right after `setUnzipping(true)` to *guarantee* a
+real paint before the heavy work starts. Dropzone now reads "Zip accepted
+-- reading…" immediately, then "N documents found · M / T entries scanned"
+live throughout. Verified directly against the real `scan15test.zip`,
+sampling the dropzone's own rendered text every 100ms during the unzip
+window: first sample already showed "Zip accepted" (not silence), followed
+by five more samples with a real, increasing entry count (4/75 -> 27/75 ->
+43/75 -> 53/75 -> 56/75) before settling -- confirms the fix holds, not
+just that the code compiles.
+
+**Removed the file-size limit entirely, per explicit request ("no limit
+size file any size").** `fileValidation.js`'s `validateFile` no longer
+rejects on `file.size > settings.maxFileBytes` (was a hardcoded 40MB
+default) -- and this connects directly to the "bad results" report: a real
+scanned PDF over that limit would previously be marked `file_too_large` and
+excluded from the batch entirely, which is exactly the kind of gap that
+produces rows full of blank fields. Removed end-to-end rather than just
+raising the number, since the field became genuinely dead once nothing
+enforces it: `maxFileBytes` dropped from `ScanSettings`
+(`types/scanner.ts`) and its default (`useScannerQueue.ts`), `file_too_large`
+dropped from `TERMINAL_ERROR_CODES` (`scannerConfig.js`) since that reason
+can no longer occur, and `test-validation.mjs`'s "an oversized file is
+rejected" check replaced with "there is no file-size limit -- a large real
+file is accepted" (a real behavior change, not a loosened assertion). Full
+regression re-run against `scan15test.zip` after the change: still 61/61
+settled, 0 reconciliation mismatches, 0 failed docs.
+
+**"Remove the name Forge completely or any brand name"** -- swept every
+remaining occurrence, not just the visible title fixed earlier this
+session: the internal IndexedDB name (`forge_scanner_react_v2` ->
+`scanner_v2` in `scannerStore.ts`, and the matching constant in
+`scripts/lib/browser-harness.mjs`), the root CSS class and its selector
+(`.forge-scanner` -> `.scanner-app` in `scanner.css`, `ScannerPage.tsx`,
+and the browser-harness's own `page.waitForSelector`), the PDF.js worker's
+internal name (`forge-scanner-pdf` -> `scanner-pdf` in
+`offlineVendor.ts`), the npm package name (`forge-scanner-react` ->
+`scanner-react` in `package.json`, with `package-lock.json` regenerated via
+`npm install` rather than hand-edited), and the `README.md`/
+`VERIFICATION.txt` title lines. Confirmed a full case-insensitive sweep of
+`src/`, `scripts/`, and the root config files afterward returns zero
+matches. **Two things deliberately left alone, flagged rather than done
+silently**: the working directory's own name
+(`Forge-Scanner-React-018-Live-Grid`) is the exact string configured as
+this Vercel project's Root Directory -- renaming it without also changing
+that dashboard setting (which this session cannot reach) would break the
+live deployment outright; and the Vercel project name itself
+(`forge-scanner`, the literal `forge-scanner-one.vercel.app` public URL) is
+equally outside what this session can change. Both need the user's own
+action in the Vercel dashboard if they're still wanted; not touched here to
+avoid breaking the live site out from under a deploy.
+
+Verified: `tsc`, full 516-test suite, and `npm run build` all clean after
+every change in this entry, not just at the end. Real-browser runs against
+`scan15test.zip`: zip-accept timing sampled directly (see above), full
+61/61 settle with 0 reconciliation mismatches and 0 failed docs confirmed
+again after the branding sweep to rule out anything broken by the
+`.forge-scanner` -> `.scanner-app` rename specifically. 0 console/page
+errors throughout.
