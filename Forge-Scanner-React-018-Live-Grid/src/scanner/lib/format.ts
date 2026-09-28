@@ -1,4 +1,7 @@
-import type { ScannerDocument, ScannerLead } from '../types/scanner';
+import type { ScannerDocument, ScannerLead, ScanStatus } from '../types/scanner';
+
+/** A document that won't be touched by the queue again -- done one way or another. */
+export const SETTLED_STATUSES: ScanStatus[] = ['complete', 'needs_review', 'failed', 'stopped', 'skipped'];
 
 /**
  * A bare "—" doesn't tell a reviewer whether a field is genuinely absent or

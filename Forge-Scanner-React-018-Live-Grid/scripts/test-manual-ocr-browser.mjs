@@ -105,10 +105,19 @@ try {
     assert.equal(untouched.statementSummary?.deposits, 19441.82);
   });
 
-  await reporter.check('the manual "Run OCR" control is disabled once nothing needs it', async () => {
+  await reporter.check('the manual "Run OCR" control stays clickable (never greyed out) once nothing needs it, and a click is a safe no-op', async () => {
     const button = scanner.page.getByRole('button', { name: /^run ocr\b/i });
     await assert.doesNotReject(button.waitFor({ state: 'visible' }));
-    assert.equal(await button.isDisabled(), true, 'nothing should be left needing OCR after the manual pass');
+    assert.equal(await button.isDisabled(), false, 'Run OCR must never be disabled, even with nothing flagged');
+    const before = await scanner.readDocuments();
+    await button.click();
+    await scanner.page.waitForTimeout(300);
+    const after = await scanner.readDocuments();
+    assert.deepEqual(
+      after.map((d) => d.processingStatus).sort(),
+      before.map((d) => d.processingStatus).sort(),
+      'clicking Run OCR with nothing flagged must not change any document'
+    );
   });
 
   // ---- Opting back in: "Auto-run OCR after scan" on restores the old automatic follow-up ----

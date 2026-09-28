@@ -3,7 +3,6 @@ import { QueuePanel } from './components/QueuePanel';
 import { LeadsSheet } from './components/LeadsSheet';
 import { AuditTable } from './components/AuditTable';
 import { RoutingPanel, type RoutingInterpreter } from './components/RoutingPanel';
-import { OptionsModal } from './components/OptionsModal';
 import { OcrFilesModal } from './components/OcrFilesModal';
 import { buildLeads, assertEngineReady } from './lib/leads';
 import { exportLeadsToXlsx } from './lib/xlsxExport';
@@ -22,7 +21,6 @@ export interface ScannerPageProps {
 export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, className = '' }: ScannerPageProps) {
   const scanner = useScannerQueue();
   const leads = useMemo(() => buildLeads(scanner.documents), [scanner.documents]);
-  const [optionsOpen, setOptionsOpen] = useState(false);
   const [ocrFilesOpen, setOcrFilesOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
   const [storageEpoch, setStorageEpoch] = useState(0);
@@ -74,7 +72,6 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
         onRetryFailed={() => void scanner.retryFailed()}
         onRunOcr={() => void scanner.runOcrOnFlagged()}
         onClearCompleted={() => void scanner.clearCompleted()}
-        onOpenOptions={() => setOptionsOpen(true)}
         onOpenOcrFiles={() => setOcrFilesOpen(true)}
         onOpenSend={() => setSendOpen(true)}
         onClearStorage={() => {
@@ -107,13 +104,6 @@ export function ScannerPage({ reps = [], onSendLeads, routingInterpreter, classN
         <AuditTable documents={scanner.documents} />
       </div>
 
-      {optionsOpen && (
-        <OptionsModal
-          settings={scanner.settings}
-          onSettings={scanner.setSettings}
-          onClose={() => setOptionsOpen(false)}
-        />
-      )}
       {ocrFilesOpen && <OcrFilesModal documents={scanner.documents} onClose={() => setOcrFilesOpen(false)} />}
       {sendOpen && (
         <RoutingPanel leads={leads} reps={reps} onSendLeads={onSendLeads} routingInterpreter={routingInterpreter} onClose={() => setSendOpen(false)} />

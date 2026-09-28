@@ -1,7 +1,7 @@
 import type { ScannerLead, ScannerDocument } from '../types/scanner';
-import { money } from '../lib/format';
+import { money, SETTLED_STATUSES } from '../lib/format';
 
-const DONE_STATUSES = new Set(['complete', 'needs_review', 'failed', 'stopped']);
+const DONE_STATUSES = new Set<string>(SETTLED_STATUSES);
 
 export function StatsStrip({ documents, leads, elapsed }: { documents: ScannerDocument[]; leads: ScannerLead[]; elapsed: string }) {
   const complete = leads.filter((l) => l.status === 'complete').length;
