@@ -1,0 +1,6 @@
+{
+  "installCommand": "echo prebuilt v16 - no install",
+  "buildCommand": "echo prebuilt v16 - served as-is",
+  "outputDirectory": "prebuilt",
+  "framework": null
+}
