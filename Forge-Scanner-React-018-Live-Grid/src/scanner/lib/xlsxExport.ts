@@ -1,10 +1,10 @@
 import type { ScannerLead } from '../types/scanner';
 import { roundDisplayAmount, potentialApproval } from './displayRules';
-import { bankAccountEntries } from './format';
+import { bankAccountEntries, revenueVerification, VERIFICATION_LABEL } from './format';
 
 const HEADER = [
   'Company', 'Owner', 'Revenue', 'Approval', 'Phone', 'Email', 'Address', 'App date', 'Statements', 'Bank',
-  'BSD', 'MCA', 'Score', 'Status', 'Duplicates excluded'
+  'BSD', 'MCA', 'Score', 'Status', 'Duplicates excluded', 'Revenue source'
 ];
 
 function statementsText(lead: ScannerLead): string {
@@ -13,7 +13,7 @@ function statementsText(lead: ScannerLead): string {
     .map((d) => {
       const deposits = d.deposits?.trueRevenue ?? d.deposits?.totalDeposits;
       const ending = d.balances?.ending;
-      return `${d.statementPeriod?.end ?? d.filename} • $${deposits ?? '—'} • $${ending ?? '—'}`;
+      return `${d.statementPeriod?.end ?? d.filename} • ${deposits ?? '—'} • ${ending ?? '—'} • ${VERIFICATION_LABEL[revenueVerification(d)]}`;
     })
     .join(' · ');
 }
@@ -45,7 +45,8 @@ function row(lead: ScannerLead): (string | number | boolean | null)[] {
     mcaText(lead) || null,
     lead.extractionScore,
     lead.status,
-    lead.duplicateCount || null
+    lead.duplicateCount || null,
+    { application: 'Application', verified_statements: 'Statements (balances add up)', unverified_statements: 'Statements (NOT proven)', none: null }[lead.revenueSource]
   ];
 }
 

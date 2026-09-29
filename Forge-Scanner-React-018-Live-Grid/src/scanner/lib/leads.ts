@@ -1,5 +1,5 @@
 import { getScannerEngine } from '../engine';
-import { extractionScore, getDocumentRevenue } from './format';
+import { extractionScore, getDocumentRevenue, revenueVerification } from './format';
 import type { ScannerDocument, ScannerLead, ScanStatus } from '../types/scanner';
 
 function nameFromDoc(doc: ScannerDocument) {
@@ -176,9 +176,19 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
     const statements = unique.filter((d) => d.docType === 'bank_statement' && !d.isMtd).sort((a, b) => String(b.statementPeriod?.end ?? '').localeCompare(String(a.statementPeriod?.end ?? '')));
     const mtdDocs = unique.filter((d) => d.docType === 'bank_statement' && !!d.isMtd).sort((a, b) => String(b.statementPeriod?.end ?? '').localeCompare(String(a.statementPeriod?.end ?? '')));
     const companyName = leadName(docs, application, groupFolder.get(id) ?? null);
-    const statementRevenue = statements.map(getDocumentRevenue).filter((n) => n > 0);
-    const revenue = application?.application?.statedRevenue
+    // Statement revenue counts only the months whose balances add up; a
+    // month that does not, or could not be checked, is no evidence of what
+    // the business takes in. With no proven month, the figure is still shown,
+    // marked unverified, rather than passed off as clean.
+    const verifiedStatements = statements.filter((d) => revenueVerification(d) === 'verified');
+    const revenueStatements = verifiedStatements.length ? verifiedStatements : statements;
+    const statementRevenue = revenueStatements.map(getDocumentRevenue).filter((n) => n > 0);
+    const statedRevenue = application?.application?.statedRevenue;
+    const revenue = statedRevenue
       ?? (statementRevenue.length ? statementRevenue.reduce((a, b) => a + b, 0) / statementRevenue.length : 0);
+    const revenueSource: ScannerLead['revenueSource'] = statedRevenue != null
+      ? 'application'
+      : !statementRevenue.length ? 'none' : verifiedStatements.length ? 'verified_statements' : 'unverified_statements';
     const extraction = leadScore(application, unique.filter((d) => d.docType === 'bank_statement'));
     const status = docs.slice().sort((a, b) => statusRank(b.processingStatus) - statusRank(a.processingStatus))[0]?.processingStatus ?? 'queued';
     const issues = docs.flatMap((d) => (d.reviewItems ?? []).map((item) => String((item as any).type ?? 'review')));
@@ -186,7 +196,7 @@ export function buildLeads(documents: ScannerDocument[]): ScannerLead[] {
     const companyInfo = buildCompanyInfo(application, docs);
     const duplicateCount = docs.filter((d) => d.duplicateOfFileId).length;
 
-    leads.push({ id, companyName, ownerName, revenue: Number(revenue) || 0, extractionScore: extraction, status, docs, application, statements, mtdDocs, issues, companyInfo, duplicateCount, possibleSameBusinessAs: [] });
+    leads.push({ id, companyName, ownerName, revenue: Number(revenue) || 0, revenueSource, extractionScore: extraction, status, docs, application, statements, mtdDocs, issues, companyInfo, duplicateCount, possibleSameBusinessAs: [] });
   });
 
   flagPossibleSameBusiness(leads);

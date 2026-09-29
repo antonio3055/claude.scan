@@ -1316,3 +1316,35 @@ three-way run was stopped at the user's request before results were read.
 **Local package**: `C:\Users\kylem\Documents\Scanner-Fixed\` -- built `dist/`
 plus a 127.0.0.1 static server and "Start Scanner.cmd", so the scanner runs
 from disk with no internet (the hosted site cannot load offline).
+
+**Follow-up, same session -- two extraction upgrades, v13 rejected, shipped to main.**
+
+- A third-party "scanner_repaired_v13" build (the Scanner-Fixed package with
+  a patched minified bundle + `scanner-enhancements-v13.js`, no source) was
+  tested as-is in a real browser before anything shipped: every application
+  failed with "Maximum call stack size exceeded" (its
+  `betterApplicationFields` looks up `extractApplicationFields` at call time,
+  after replacing it with itself), statement revenue was inflated (e.g. 4t
+  Manufacturing Mar $344,763 -> $649,691) and reconciliation dropped from 42
+  to 3 statements on scan15test. The user chose not to ship it; left
+  untouched.
+- **Revenue that does not add up is marked, not passed off as clean**:
+  `revenueVerification()` in `lib/format.ts` (verified / conflicting /
+  unverified from `reconciliation.reconciles`). Each statement month in the
+  Results sheet carries ✓ / ⚠ / ?, the export says "balances add up / does
+  not add up / not proven" plus a new last column "Revenue source", a lead's
+  statement-derived revenue averages only verified months (marked "?" when
+  none are), and the audit only rates a statement Good when it adds up.
+- **Two-column application forms paired by position**: `pairColumnRows` in
+  `pdfRows.js` (form text only, via `mergeNearRows`): a row of 2+ label cells
+  followed within 20 units by a row with the same cells at the same x (<= 6)
+  is paired column by column. Calibrated on the real ARCOS form (labels 12
+  units above answers, identical x); a normal 26-28 unit line gap never pairs.
+- Auto-OCR of labels-only applications was built and then reverted at the
+  user's request: OCR stays off by default, click "Run OCR" to run it.
+
+Verified: 527/527, tsc, build; real browser -- scan15test 0 blanks and 0
+statement changes; new zip before Run OCR: blank Owner 11, Phone 0, Email 1,
+BSD 7; after Run OCR: Owner 10, BSD 6; all real statements' numbers identical
+to the original baseline. Pushed straight to main (user's choice; no PR,
+because GitHub CLI/connector/Chrome were all unavailable).

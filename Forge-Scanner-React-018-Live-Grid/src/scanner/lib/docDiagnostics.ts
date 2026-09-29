@@ -72,11 +72,13 @@ function diagnoseStatement(doc: ScannerDocument): Diagnosis {
   if (!has(deposits)) gaps.push('no deposit total');
   if (!doc.statementIdentity?.name && !doc.companyNameGuess) gaps.push('no account-holder name');
   if (doc.truncated && doc.scannedPageCount && doc.pageCount) gaps.push(`read ${doc.scannedPageCount} of ${doc.pageCount} pages`);
-  if (doc.reconciliation?.reconciles === false) gaps.push(`does not reconcile (Δ ${doc.reconciliation.difference ?? '?'})`);
+  if (doc.reconciliation?.reconciles === false) gaps.push(`balances do not add up (Δ ${doc.reconciliation.difference ?? '?'}) -- revenue not proven`);
+  // Everything found is still not verified until the numbers agree with
+  // each other: only then is this month's revenue a proven figure.
+  else if (doc.reconciliation?.reconciles !== true) gaps.push('balances could not be checked against each other -- revenue not proven');
 
   if (!gaps.length) {
-    const proof = doc.reconciliation?.reconciles === true ? '; balances reconcile' : '';
-    return { verdict: 'good', summary: `Bank, period, balances and deposits found${proof}${ocrNote}` };
+    return { verdict: 'good', summary: `Bank, period, balances and deposits found; balances add up${ocrNote}` };
   }
   return { verdict: 'partial', summary: `Read, but ${list(gaps)}${ocrNote}` };
 }

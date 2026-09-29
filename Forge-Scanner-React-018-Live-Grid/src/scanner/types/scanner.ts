@@ -123,6 +123,8 @@ export interface ScannerLead {
   companyName: string;
   ownerName?: string | null;
   revenue: number;
+  /** Where the revenue figure came from: the application's own statement, statements whose balances add up, or statements that do not/could not be proven. */
+  revenueSource: 'application' | 'verified_statements' | 'unverified_statements' | 'none';
   extractionScore: number;
   status: ScanStatus;
   docs: ScannerDocument[];

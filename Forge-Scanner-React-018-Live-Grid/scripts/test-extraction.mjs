@@ -398,6 +398,34 @@ await reporter.check('a form answer printed a fraction of a unit off its label j
   assert.equal(rebuildRows(items).trim(), 'DIMAS TOWER INC.\nLegal Business Name\nDBA');
 });
 
+// Coordinates measured on a real two-column application form.
+const at = (text, x, y) => ({ str: text, width: text.length * 5, transform: [10, 0, 0, 10, x, y] });
+
+await reporter.check('a two-column form pairs each label with the answer under it, by column', async () => {
+  const items = [
+    at('Legal Business Name', 50, 437), at('DBA', 306, 437),
+    at('ACME WIDGETS CORP', 50, 425), at("Acme's Puppies World", 306, 425),
+    at('Business Phone', 50, 402), at('Business Start Date', 306, 402),
+    at('+1 ***-***-0001', 50, 390), at('2021-03-15', 306, 390)
+  ];
+  assert.equal(
+    rebuildRows(items, { mergeNearRows: true }).trim(),
+    "Legal Business Name ACME WIDGETS CORP\nDBA Acme's Puppies World\nBusiness Phone +1 ***-***-0001\nBusiness Start Date 2021-03-15"
+  );
+  // Statement text never pairs columns.
+  assert.equal(rebuildRows(items).trim().split('\n')[0], 'Legal Business Name DBA');
+});
+
+await reporter.check('rows a normal line apart are not paired as label and answer', async () => {
+  const items = [
+    at('Business Start Date', 38, 592.9), at('July 1, 2024', 148, 594.4), at('Industry', 301, 592.9), at('Transportation', 411, 594.4),
+    at('Entity Type', 38, 565.1), at('Corporation', 148, 566.6), at('Tax ID Number(EIN)', 301, 565.1), at('99-0000001', 411, 566.6)
+  ];
+  const lines = rebuildRows(items, { mergeNearRows: true }).trim().split('\n');
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].startsWith('Business Start Date July 1, 2024'), lines[0]);
+});
+
 await reporter.check('form layout does not join lines a real line apart', async () => {
   const top = layOut(['Business', { text: 'Address', gap: 4 }], { y: 614.727 });
   const next = layOut(['FLORAL', { text: 'PARK', gap: 4 }], { y: 603.438 });

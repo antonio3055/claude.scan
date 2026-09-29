@@ -85,10 +85,61 @@ export function rebuildRows(items, { mergeNearRows = false } = {}) {
     else merged.push([...row]);
   }
 
-  return (
-    merged
-      .map((row) => joinRow(row))
-      .filter(Boolean)
-      .join('\n') + '\n'
-  );
+  const lines = mergeNearRows ? pairColumnRows(merged) : merged.map((row) => joinRow(row));
+  return lines.filter(Boolean).join('\n') + '\n';
+}
+
+/** A horizontal gap this wide separates two cells of a form, not two words of one answer. */
+const CELL_GAP = 24;
+/** A label and its answer start at the same x on two-column forms (measured: identical). */
+const COLUMN_ALIGN = 6;
+/** The answer row sits directly under its labels (measured: 12 units); a further row is a new field. */
+const PAIRED_ROW_DISTANCE = 20;
+
+function cellsOf(row) {
+  const sorted = [...row].filter((item) => item.text.trim()).sort((a, b) => a.x - b.x);
+  const cells = [];
+  for (const item of sorted) {
+    const cell = cells[cells.length - 1];
+    if (cell && item.x - cell.end < CELL_GAP) {
+      cell.items.push(item);
+      cell.end = Math.max(cell.end, item.x + item.width);
+    } else {
+      cells.push({ x: item.x, end: item.x + item.width, items: [item] });
+    }
+  }
+  return cells.map((cell) => ({ x: cell.x, text: joinRow(cell.items) }));
+}
+
+/**
+ * Two-column application forms print a row of labels with their answers on
+ * the row beneath, one column per field ("Legal Business Name   DBA" over
+ * "ARCOS Y OTAMENDI CORP   Hairy's Puppies World"). Read as lines, every
+ * label lands on one line and every answer on the next, and no label-based
+ * rule can tell which answer is whose. Pairing them by column position gives
+ * "Legal Business Name ARCOS Y OTAMENDI CORP" / "DBA Hairy's Puppies World".
+ * Only a row of two or more cells followed directly by a row with the same
+ * number of cells starting at the same x positions is paired; anything else
+ * is left as the line it was.
+ */
+function pairColumnRows(rows) {
+  const out = [];
+  for (let i = 0; i < rows.length; i += 1) {
+    const labels = cellsOf(rows[i]);
+    const next = rows[i + 1];
+    if (labels.length >= 2 && next) {
+      const answers = cellsOf(next);
+      const distance = Math.min(...rows[i].map((item) => item.y)) - Math.max(...next.map((item) => item.y));
+      const aligned = answers.length === labels.length && answers.every((cell, c) => Math.abs(cell.x - labels[c].x) <= COLUMN_ALIGN);
+      // Labels are words: a row of amounts over a row of amounts is a table.
+      const labelLike = labels.filter((cell) => !/\d/.test(cell.text)).length * 2 >= labels.length;
+      if (aligned && labelLike && distance > 0 && distance <= PAIRED_ROW_DISTANCE) {
+        labels.forEach((cell, c) => out.push(`${cell.text} ${answers[c].text}`));
+        i += 1;
+        continue;
+      }
+    }
+    out.push(joinRow(rows[i]));
+  }
+  return out;
 }

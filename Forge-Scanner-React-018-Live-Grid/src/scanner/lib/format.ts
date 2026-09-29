@@ -32,6 +32,28 @@ export function money(value: number | null | undefined, sourceDoc?: ScannerDocum
   return `$${Math.round(value).toLocaleString('en-US')}`;
 }
 
+/**
+ * Whether a statement's numbers are proven: its opening balance, deposits and
+ * withdrawals arrive at the ending balance the bank printed. Only a verified
+ * statement's revenue is presented as a clean figure; one that does not add
+ * up, or could not be checked, is marked wherever its numbers are shown.
+ */
+export type RevenueVerification = 'verified' | 'conflicting' | 'unverified';
+
+export function revenueVerification(doc: ScannerDocument): RevenueVerification {
+  if (doc.reconciliation?.reconciles === true) return 'verified';
+  if (doc.reconciliation?.reconciles === false) return 'conflicting';
+  return 'unverified';
+}
+
+export const VERIFICATION_MARK: Record<RevenueVerification, string> = { verified: '✓', conflicting: '⚠', unverified: '?' };
+
+export const VERIFICATION_LABEL: Record<RevenueVerification, string> = {
+  verified: 'balances add up',
+  conflicting: 'does not add up',
+  unverified: 'not proven'
+};
+
 export function getDocumentRevenue(doc: ScannerDocument) {
   const app = doc.application?.statedRevenue;
   const trueRevenue = Number(doc.deposits?.trueRevenue) || 0;

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { ScannerLead } from '../types/scanner';
-import { bankAccountEntries, displayList, displayValue, money, shortDocLabel } from '../lib/format';
+import { bankAccountEntries, displayList, displayValue, money, revenueVerification, shortDocLabel, VERIFICATION_MARK } from '../lib/format';
 import { potentialApproval, roundDisplayAmount } from '../lib/displayRules';
 import { auditSummary } from '../lib/leads';
 import { useResizableColumns } from '../hooks/useResizableColumns';
@@ -71,7 +71,7 @@ function statementText(lead: ScannerLead) {
     .map((doc) => {
       const deposits = doc.deposits?.trueRevenue ?? doc.deposits?.totalDeposits;
       const ending = doc.balances?.ending;
-      return `${shortDocLabel(doc)} ${displayValue(deposits == null ? null : money(deposits), doc)} • ${displayValue(ending == null ? null : money(ending), doc)}`;
+      return `${shortDocLabel(doc)} ${displayValue(deposits == null ? null : money(deposits), doc)} • ${displayValue(ending == null ? null : money(ending), doc)} ${VERIFICATION_MARK[revenueVerification(doc)]}`;
     })
     .join(' · ');
 }
@@ -236,7 +236,9 @@ export function LeadsSheet({ leads, running, onExport, onRemoveUnassociated }: P
               </>
             ),
             owner: displayValue(app?.fullName, lead.application),
-            revenue: money(roundDisplayAmount(lead.revenue)),
+            revenue: lead.revenueSource === 'unverified_statements'
+              ? <span className="flag-amber" title="Taken from statements whose balances do not add up or could not be checked -- not a proven figure">{money(roundDisplayAmount(lead.revenue))} ?</span>
+              : money(roundDisplayAmount(lead.revenue)),
             approval: money(potentialApproval(lead.revenue)),
             phone: displayList(app?.phones, lead.application).join(' • '),
             email: displayList(app?.emails, lead.application).join(' • '),
@@ -259,7 +261,10 @@ export function LeadsSheet({ leads, running, onExport, onRemoveUnassociated }: P
           const titles: Record<string, string | undefined> = {
             phone: cells.phone as string,
             email: cells.email as string,
-            statements,
+            statements: statements ? `${statements}
+
+✓ balances add up · ⚠ opening + deposits − withdrawals ≠ ending · ? could not be checked` : statements,
+            revenue: lead.revenueSource === 'application' ? 'Stated on the application' : lead.revenueSource === 'verified_statements' ? 'Average of statement months whose balances add up' : lead.revenueSource === 'unverified_statements' ? 'No statement month adds up -- figure not proven' : undefined,
             bank,
             mca,
             address: [info.applicationAddress ?? info.statementAddresses[0], ...(info.addressDiffers ? [`(statements: ${info.statementAddresses.join(', ')})`] : [])].filter(Boolean).join(' ')
